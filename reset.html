@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HomeManager — Choose new password</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="shell shell-center">
+    <section class="card">
+      <div class="brandlock">
+        <div class="logo">HM</div>
+        <div>
+          <h1 class="h1">Choose a new password</h1>
+          <p id="sub" class="muted">—</p>
+        </div>
+      </div>
+
+      <form id="resetForm" class="form">
+        <label>
+          New password
+          <input name="password" type="password" placeholder="New password" required />
+        </label>
+
+        <label>
+          Confirm password
+          <input name="password2" type="password" placeholder="Confirm password" required />
+        </label>
+
+        <button class="btn" type="submit">Update password</button>
+        <p id="error" class="error" role="alert" aria-live="polite"></p>
+        <p id="msg" class="muted" aria-live="polite"></p>
+      </form>
+
+      <div class="row between mt12">
+        <a class="link" href="./index.html">Back to sign in</a>
+      </div>
+    </section>
+  </main>
+
+  <script src="./auth.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const email = (params.get("email") || "").toLowerCase();
+    document.getElementById("sub").textContent = email ? `Resetting password for ${email}` : "Missing email parameter.";
+
+    const form = document.getElementById("resetForm");
+    const errorEl = document.getElementById("error");
+    const msg = document.getElementById("msg");
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      errorEl.textContent = "";
+      msg.textContent = "";
+
+      if (!email) {
+        errorEl.textContent = "Missing email. Go back and request a reset link.";
+        return;
+      }
+
+      const p1 = form.password.value;
+      const p2 = form.password2.value;
+
+      if (p1.length < 6) {
+        errorEl.textContent = "Password must be at least 6 characters.";
+        return;
+      }
+      if (p1 !== p2) {
+        errorEl.textContent = "Passwords do not match.";
+        return;
+      }
+
+      const result = window.Auth.updatePassword(email, p1);
+      if (!result.ok) {
+        errorEl.textContent = result.message || "Could not reset password.";
+        return;
+      }
+
+      msg.textContent = "Password updated. Redirecting to sign in…";
+      setTimeout(() => (window.location.href = "./index.html"), 900);
+    });
+  </script>
+</body>
+</html>

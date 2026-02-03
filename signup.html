@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HomeManager — Create account</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="shell shell-center">
+    <section class="card">
+      <div class="brandlock">
+        <div class="logo">HM</div>
+        <div>
+          <h1 class="h1">Create your HomeManager account</h1>
+          <p class="muted">Start managing properties in minutes.</p>
+        </div>
+      </div>
+
+      <form id="signupForm" class="form">
+        <label>
+          Full name
+          <input name="name" type="text" placeholder="Your name" required />
+        </label>
+
+        <label>
+          Email
+          <input name="email" type="email" placeholder="you@company.com" required />
+        </label>
+
+        <label>
+          Password
+          <input name="password" type="password" placeholder="Create a password" required />
+        </label>
+
+        <label>
+          Confirm password
+          <input name="password2" type="password" placeholder="Confirm password" required />
+        </label>
+
+        <label>
+          I am a:
+          <select name="role" required>
+            <option value="property_manager" selected>Property Manager</option>
+            <option value="landlord">Landlord / Owner</option>
+            <option value="tenant">Tenant</option>
+          </select>
+        </label>
+
+        <button class="btn" type="submit">Create account</button>
+        <p id="error" class="error" role="alert" aria-live="polite"></p>
+      </form>
+
+      <div class="row between mt12">
+        <a class="link" href="./index.html">Back to sign in</a>
+      </div>
+    </section>
+  </main>
+
+  <script src="./auth.js"></script>
+  <script src="./data.js"></script>
+  <script>
+    const form = document.getElementById("signupForm");
+    const errorEl = document.getElementById("error");
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      errorEl.textContent = "";
+
+      const name = form.name.value.trim();
+      const email = form.email.value.trim().toLowerCase();
+      const password = form.password.value;
+      const password2 = form.password2.value;
+      const role = form.role.value;
+
+      if (!name || !email || !password || !password2 || !role) {
+        errorEl.textContent = "Please complete all fields.";
+        return;
+      }
+      if (password.length < 6) {
+        errorEl.textContent = "Password must be at least 6 characters.";
+        return;
+      }
+      if (password !== password2) {
+        errorEl.textContent = "Passwords do not match.";
+        return;
+      }
+
+      const result = window.Auth.registerUser({ name, email, password, role });
+      if (!result.ok) {
+        errorEl.textContent = result.message || "Could not create account.";
+        return;
+      }
+
+      window.Data.bootstrap();
+      window.location.href = "./app.html#onboarding";
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HomeManager — Reset password</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="shell shell-center">
+    <section class="card">
+      <div class="brandlock">
+        <div class="logo">HM</div>
+        <div>
+          <h1 class="h1">Reset your password</h1>
+          <p class="muted">Enter your email to receive a reset link (prototype simulation).</p>
+        </div>
+      </div>
+
+      <form id="forgotForm" class="form">
+        <label>
+          Email
+          <input name="email" type="email" placeholder="you@company.com" required />
+        </label>
+
+        <button class="btn" type="submit">Send reset link</button>
+        <p id="msg" class="muted" aria-live="polite"></p>
+        <p id="error" class="error" role="alert" aria-live="polite"></p>
+      </form>
+
+      <div class="row between mt12">
+        <a class="link" href="./index.html">Back to sign in</a>
+      </div>
+    </section>
+  </main>
+
+  <script src="./auth.js"></script>
+  <script>
+    const form = document.getElementById("forgotForm");
+    const msg = document.getElementById("msg");
+    const errorEl = document.getElementById("error");
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      msg.textContent = "";
+      errorEl.textContent = "";
+
+      const email = form.email.value.trim().toLowerCase();
+      if (!email) return;
+
+      // Prototype: if user exists, "send" link by routing to reset.html with email param
+      const exists = window.Auth.userExists(email);
+
+      if (!exists) {
+        // In real systems you often don't reveal existence, but for prototype it’s helpful.
+        errorEl.textContent = "No account found for that email. Try signing up.";
+        return;
+      }
+
+      msg.textContent = "Reset link generated (prototype). Redirecting…";
+      setTimeout(() => {
+        window.location.href = `./reset.html?email=${encodeURIComponent(email)}`;
+      }, 600);
+    });
+  </script>
+</body>
+</html>

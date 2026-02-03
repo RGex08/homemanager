@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HomeManager — Sign in</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="shell shell-center">
+    <section class="card">
+      <div class="brandlock">
+        <div class="logo">HM</div>
+        <div>
+          <h1 class="h1">Sign in to HomeManager</h1>
+          <p class="muted">Property management made simple — rent, tenants, maintenance, and reporting.</p>
+        </div>
+      </div>
+
+      <form id="loginForm" class="form">
+        <label>
+          Email
+          <input name="email" type="email" placeholder="you@company.com" required />
+        </label>
+
+        <label>
+          Password
+          <input name="password" type="password" placeholder="••••••••" required />
+        </label>
+
+        <button class="btn" type="submit">Continue</button>
+        <p id="error" class="error" role="alert" aria-live="polite"></p>
+      </form>
+
+      <div class="row between mt12">
+        <a class="link" href="./forgot.html">Forgot password?</a>
+        <a class="link" href="./signup.html">Create an account</a>
+      </div>
+
+      <div class="footer-row">
+        <button id="demoBtn" class="btn btn-ghost" type="button">Use demo user</button>
+        <span class="muted">Zero-backend prototype</span>
+      </div>
+    </section>
+  </main>
+
+  <script src="./auth.js"></script>
+  <script src="./data.js"></script>
+  <script>
+    // If already authed, go to app
+    if (window.Auth.isAuthed()) window.location.href = "./app.html#dashboard";
+
+    const form = document.getElementById("loginForm");
+    const errorEl = document.getElementById("error");
+    const demoBtn = document.getElementById("demoBtn");
+
+    demoBtn.addEventListener("click", () => {
+      // Ensure demo user exists
+      window.Auth.ensureDemoUser();
+      form.email.value = "demo@homemanager.com";
+      form.password.value = "password";
+    });
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      errorEl.textContent = "";
+
+      const email = form.email.value.trim().toLowerCase();
+      const password = form.password.value;
+
+      if (!email || !password) {
+        errorEl.textContent = "Please enter email and password.";
+        return;
+      }
+
+      const result = window.Auth.loginWithPassword(email, password);
+      if (!result.ok) {
+        errorEl.textContent = result.message || "Login failed.";
+        return;
+      }
+
+      // Seed fake portfolio data if needed
+      window.Data.bootstrap();
+
+      window.location.href = "./app.html#dashboard";
+    });
+  </script>
+</body>
+</html>
