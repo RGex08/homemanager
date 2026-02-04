@@ -1,15 +1,33 @@
+/**
+ * HomeManager Application
+ * Main application logic with routing, views, and event handling
+ */
 (function () {
+  "use strict";
+
+  const { STORAGE_KEYS, ROLES, UNIT_STATUS, MAINTENANCE_STATUS, PAYMENT_STATUS, PRIORITY, CATEGORIES, PROPERTY_TYPES, NOTIFICATION_TYPES, ID_PREFIX, COLLECTIONS } = window.Constants;
+  const { generateId, today, formatNumber, escapeHtml, statusPill, priorityBadge, createTable, getUnitLabel, getRoleLabel, parseHash, setHash, createSelectOptions, createCategoryOptions } = window.Utils;
+
+  // Aliases for brevity
+  const fmt = formatNumber;
+  const esc = escapeHtml;
+  const pillStatus = statusPill;
+
+  // Auth check
   if (!window.Auth.isAuthed()) {
     window.location.href = "./index.html";
     return;
   }
 
+  // Initialize data
   window.Data.bootstrap();
 
+  // Current user info
   const me = window.Auth.me();
   const role = me.role;
   const email = me.email;
 
+  // DOM elements
   const navEl = document.getElementById("nav");
   const viewEl = document.getElementById("view");
   const whoEl = document.getElementById("who");
@@ -18,67 +36,68 @@
   const pageSubtitle = document.getElementById("pageSubtitle");
   const kpiPills = document.getElementById("kpiPills");
 
+  // Initialize UI
   whoEl.textContent = me.email;
-  roleBadge.textContent = roleLabel(role);
+  roleBadge.textContent = getRoleLabel(role);
 
   // Sidebar toggle functionality
   const sidebarToggle = document.getElementById("sidebarToggle");
   const appEl = document.querySelector(".app");
-  let sidebarCollapsed = localStorage.getItem("sidebar_collapsed") === "true";
-  
+  let sidebarCollapsed = localStorage.getItem(STORAGE_KEYS.SIDEBAR_COLLAPSED) === "true";
+
   if (sidebarCollapsed) {
     appEl.classList.add("sidebar-collapsed");
   }
-  
+
   sidebarToggle.addEventListener("click", () => {
     sidebarCollapsed = !sidebarCollapsed;
     appEl.classList.toggle("sidebar-collapsed");
-    localStorage.setItem("sidebar_collapsed", sidebarCollapsed);
+    localStorage.setItem(STORAGE_KEYS.SIDEBAR_COLLAPSED, sidebarCollapsed);
   });
 
   // User menu functionality
   const userMenuBtn = document.getElementById("userMenuBtn");
   const userMenuDropdown = document.getElementById("userMenuDropdown");
   const userMenu = document.querySelector(".user-menu");
-  
+
   userMenuBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     userMenu.classList.toggle("open");
     userMenuDropdown.classList.toggle("show");
   });
-  
+
   document.addEventListener("click", () => {
     userMenu.classList.remove("open");
     userMenuDropdown.classList.remove("show");
   });
-  
+
   userMenuDropdown.addEventListener("click", (e) => {
     e.stopPropagation();
   });
 
-  // Logout from top menu
+  // Logout handler
   document.getElementById("logoutBtnTop").addEventListener("click", () => {
     window.Auth.logout();
     window.location.href = "./index.html";
   });
 
+  // Routes configuration
   const routes = getRoutesForRole(role);
 
+  // Event delegation for dynamic content
+  viewEl.addEventListener("click", handleViewClick);
+  viewEl.addEventListener("submit", handleViewSubmit, true);
+  viewEl.addEventListener("change", handleViewChange);
+
+  // Initial render
   window.addEventListener("hashchange", render);
   render();
 
-  function parseHash() {
-    const raw = (window.location.hash || "#dashboard").slice(1);
-    const [key, qs] = raw.split("?");
-    const params = new URLSearchParams(qs || "");
-    return { key: key || "dashboard", params };
-  }
+  // ===== ROUTING & RENDERING =====
 
   function render() {
-    const profile = window.Data.getProfile(email);
     const { key, params } = parseHash();
 
-    // Always render navigation
     renderNav(routes);
 
     // Dynamic Unit route
@@ -88,10 +107,9 @@
 
       renderKpis();
       pageTitle.textContent = "Unit Detail";
-      pageSubtitle.textContent = "Tenants • Leases • Maintenance • Features";
+      pageSubtitle.textContent = "Tenants \u2022 Leases \u2022 Maintenance \u2022 Features";
 
       viewEl.innerHTML = viewUnitDetail(unitId, tab);
-      wireUnitDetail(unitId, tab);
 
       highlightNavUnit(unitId);
       highlightTopNav(null);
@@ -105,20 +123,19 @@
     pageSubtitle.textContent = match.subtitle || "";
 
     viewEl.innerHTML = match.render();
-    wireActions(match.key);
 
     highlightTopNav(match.key);
     highlightNavUnit(null);
   }
 
   function highlightTopNav(routeKey) {
-    [...navEl.querySelectorAll("a[data-key]")].forEach(a => {
+    navEl.querySelectorAll("a[data-key]").forEach(a => {
       a.classList.toggle("active", a.dataset.key === routeKey);
     });
   }
 
   function highlightNavUnit(unitId) {
-    [...navEl.querySelectorAll(".navitem-child[data-unit]")].forEach(a => {
+    navEl.querySelectorAll(".navitem-child[data-unit]").forEach(a => {
       a.classList.toggle("active", unitId && a.getAttribute("data-unit") === unitId);
     });
   }
@@ -128,18 +145,17 @@
     const { key, params } = parseHash();
     const activeUnitId = key === "unit" ? params.get("unitId") : null;
 
-    // Get all units across all properties for simple list
     const allUnits = state.units.map(u => {
       const prop = state.properties.find(p => p.id === u.propertyId);
       return { ...u, propertyName: prop?.name || "Unknown Property" };
     });
 
     const unitsHtml = allUnits.map(u => `
-      <a class="navitem navitem-child ${activeUnitId===u.id ? "active":""}"
+      <a class="navitem navitem-child ${activeUnitId === u.id ? "active" : ""}"
          href="#unit?unitId=${u.id}&tab=tenants"
          data-unit="${u.id}">
         <span class="dot dot-child"></span>
-        <span>${esc(u.propertyName)} • ${esc(u.label)}</span>
+        <span>${esc(u.propertyName)} \u2022 ${esc(u.label)}</span>
       </a>
     `).join("");
 
@@ -152,7 +168,7 @@
 
       <div class="navsection-title">Units</div>
       <div class="units-list">
-        ${unitsHtml || `<div class="muted small">No units yet — add from Properties page.</div>`}
+        ${unitsHtml || `<div class="muted small">No units yet \u2014 add from Properties page.</div>`}
       </div>
     `;
   }
@@ -161,12 +177,12 @@
     const state = window.Data.db();
 
     const totalUnits = state.units.length;
-    const occupied = state.units.filter(u => u.status === "Occupied").length;
+    const occupied = state.units.filter(u => u.status === UNIT_STATUS.OCCUPIED).length;
     const occupancy = totalUnits ? Math.round((occupied / totalUnits) * 100) : 0;
 
     const jan = state.payments.filter(p => p.month === "2026-01");
-    const collected = jan.filter(p => p.status === "Paid").reduce((s, p) => s + p.amount, 0);
-    const overdue = jan.filter(p => p.status !== "Paid").length;
+    const collected = jan.filter(p => p.status === PAYMENT_STATUS.PAID).reduce((s, p) => s + p.amount, 0);
+    const overdue = jan.filter(p => p.status !== PAYMENT_STATUS.PAID).length;
 
     kpiPills.innerHTML = `
       <span class="kpi">Occupancy: <b>${occupancy}%</b></span>
@@ -175,213 +191,524 @@
     `;
   }
 
-  function getRoutesForRole(role) {
-    return [
+  function getRoutesForRole(r) {
+    const baseRoutes = [
       { key: "dashboard", title: "Dashboard", subtitle: "Portfolio overview", render: viewDashboard },
       { key: "properties", title: "Properties", subtitle: "Manage properties and units", render: viewProperties },
       { key: "maintenance", title: "Maintenance", subtitle: "Track and schedule maintenance", render: viewMaintenance },
       { key: "vendors", title: "Vendors", subtitle: "Preferred vendors and contacts", render: viewVendors },
       { key: "reports", title: "Reports", subtitle: "Financial and operational reports", render: viewReports },
-      { key: "notifications", title: "Notifications", subtitle: "Alerts and reminders", render: viewNotifications }
+      { key: "notifications", title: "Notifications", subtitle: "Alerts and reminders", render: viewNotifications },
+      { key: "profile", title: "My Profile", subtitle: "Manage your profile", render: viewProfile },
+      { key: "settings", title: "My Settings", subtitle: "Application settings", render: viewSettings },
+      { key: "account", title: "My Account", subtitle: "Account information", render: viewAccount }
     ];
+    return baseRoutes;
   }
 
-  function wireActions(key) {
+  // ===== EVENT DELEGATION HANDLERS =====
+
+  function handleViewClick(e) {
+    const target = e.target.closest("[data-action]");
+    if (!target) return;
+
+    const action = target.dataset.action;
     const state = window.Data.db();
 
-    if (key === "properties") {
-      const propForm = document.getElementById("addPropertyForm");
-      propForm?.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const name = propForm.name.value.trim();
-        const address = propForm.address.value.trim();
-        const type = propForm.type.value;
+    switch (action) {
+      case "delete-unit": {
+        const id = target.dataset.id;
+        const unit = state.units.find(u => u.id === id);
+        if (!unit) return;
+
+        if (unit.leaseActive) {
+          alert("This unit cannot be deleted because it has an active lease.");
+          return;
+        }
+
+        if (!confirm(`Delete ${unit.label}?`)) return;
+
+        state.unit_features.filter(f => f.unitId === id).forEach(f => {
+          window.Data.remove(COLLECTIONS.UNIT_FEATURES, f.id);
+        });
+        state.maintenance.filter(m => m.unitId === id).forEach(m => {
+          window.Data.remove(COLLECTIONS.MAINTENANCE, m.id);
+        });
+
+        window.Data.remove(COLLECTIONS.UNITS, id);
+        render();
+        break;
+      }
+
+      case "open-unit": {
+        const id = target.dataset.id;
+        setHash("unit", { unitId: id, tab: "tenants" });
+        break;
+      }
+
+      case "delete-property": {
+        const id = target.dataset.id;
+        const units = state.units.filter(u => u.propertyId === id);
+
+        if (units.length > 0) {
+          alert("Cannot delete property with units. Delete all units first.");
+          return;
+        }
+
+        if (!confirm("Delete this property?")) return;
+        window.Data.remove(COLLECTIONS.PROPERTIES, id);
+        render();
+        break;
+      }
+
+      case "delete-vendor": {
+        const id = target.dataset.id;
+        if (!confirm("Delete this vendor?")) return;
+        window.Data.remove(COLLECTIONS.VENDORS, id);
+        render();
+        break;
+      }
+
+      case "delete-tenant": {
+        const id = target.dataset.id;
+        if (!confirm("Delete this tenant?")) return;
+        window.Data.remove(COLLECTIONS.TENANTS, id);
+        render();
+        break;
+      }
+
+      case "delete-feature": {
+        const id = target.dataset.id;
+        if (!confirm("Delete this feature?")) return;
+        window.Data.remove(COLLECTIONS.UNIT_FEATURES, id);
+        render();
+        break;
+      }
+
+      case "advance-maintenance": {
+        const id = target.dataset.id;
+        const next = target.dataset.next;
+        const item = state.maintenance.find(m => m.id === id);
+        if (!item) return;
+
+        if (next === MAINTENANCE_STATUS.COMPLETE) {
+          const costStr = prompt("Enter completion cost (optional):", "0");
+          const cost = Number(costStr) || 0;
+
+          window.Data.add(COLLECTIONS.MAINTENANCE_HISTORY, {
+            id: generateId(ID_PREFIX.MAINTENANCE_HISTORY),
+            unitId: item.unitId,
+            title: item.title,
+            category: item.category,
+            status: MAINTENANCE_STATUS.COMPLETE,
+            cost: cost,
+            vendorId: item.vendorId || "",
+            featureId: item.featureId || "",
+            completed: today()
+          });
+          window.Data.remove(COLLECTIONS.MAINTENANCE, item.id);
+        } else {
+          window.Data.upsert(COLLECTIONS.MAINTENANCE, { ...item, status: next });
+        }
+
+        render();
+        break;
+      }
+
+      case "end-lease": {
+        const leaseId = target.dataset.id;
+        const lease = state.leases.find(l => l.id === leaseId);
+        if (!lease) return;
+
+        if (!confirm("End this lease? Unit will be marked as vacant.")) return;
+
+        const unit = state.units.find(u => u.id === lease.unitId);
+        if (unit) {
+          window.Data.upsert(COLLECTIONS.UNITS, {
+            ...unit,
+            status: UNIT_STATUS.VACANT,
+            tenantName: "",
+            leaseActive: false
+          });
+        }
+
+        window.Data.upsert(COLLECTIONS.LEASES, { ...lease, active: false });
+        render();
+        break;
+      }
+
+      case "toggle-payment": {
+        const paymentId = target.dataset.id;
+        const payment = state.payments.find(p => p.id === paymentId);
+        if (!payment) return;
+
+        const newStatus = payment.status === PAYMENT_STATUS.PAID ? PAYMENT_STATUS.UNPAID : PAYMENT_STATUS.PAID;
+        window.Data.upsert(COLLECTIONS.PAYMENTS, { ...payment, status: newStatus });
+        render();
+        break;
+      }
+
+      case "clear-notifications": {
+        if (!confirm("Clear all notifications?")) return;
+        window.Data.write(s => { s.notifications = []; });
+        render();
+        break;
+      }
+    }
+  }
+
+  function handleViewSubmit(e) {
+    if (e.target.tagName !== "FORM") return;
+
+    const form = e.target;
+    const formId = form.id;
+    const state = window.Data.db();
+
+    e.preventDefault();
+
+    switch (formId) {
+      case "addPropertyForm": {
+        const name = form.name.value.trim();
+        const address = form.address.value.trim();
+        const type = form.type.value;
         if (!name || !address) return;
 
-        const id = "p" + Math.random().toString(16).slice(2, 8);
-        window.Data.add("properties", { id, name, address, type });
-        window.location.reload();
-      });
+        window.Data.add(COLLECTIONS.PROPERTIES, {
+          id: generateId(ID_PREFIX.PROPERTY),
+          name,
+          address,
+          type
+        });
+        form.reset();
+        render();
+        break;
+      }
 
-      const unitForm = document.getElementById("addUnitFromProperties");
-      unitForm?.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const propertyId = unitForm.propertyId.value;
-        const label = unitForm.label.value.trim();
-        const sqft = Number(unitForm.sqft.value || 0);
-        const rent = Number(unitForm.rent.value || 0);
-        if (!propertyId || !label) return alert("Property and unit label are required.");
+      case "addUnitFromProperties": {
+        const propertyId = form.propertyId.value;
+        const label = form.label.value.trim();
+        const sqft = Number(form.sqft.value || 0);
+        const rent = Number(form.rent.value || 0);
+        if (!propertyId || !label) {
+          alert("Property and unit label are required.");
+          return;
+        }
 
-        const id = "u" + Math.random().toString(16).slice(2, 8);
-        window.Data.add("units", {
-          id, propertyId, label, sqft, rent,
-          status: "Vacant",
+        window.Data.add(COLLECTIONS.UNITS, {
+          id: generateId(ID_PREFIX.UNIT),
+          propertyId,
+          label,
+          sqft,
+          rent,
+          status: UNIT_STATUS.VACANT,
           tenantName: "",
           leaseActive: false
         });
-        window.location.reload();
-      });
+        form.reset();
+        render();
+        break;
+      }
 
-      document.querySelectorAll("[data-delete-unit]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const id = btn.getAttribute("data-delete-unit");
-          const unit = state.units.find(u => u.id === id);
-          if (!unit) return;
-
-          if (unit.leaseActive) {
-            alert("This unit cannot be deleted because it has an active lease.");
-            return;
-          }
-
-          if (!confirm(`Delete ${unit.label}?`)) return;
-          
-          // Also delete related features and maintenance
-          state.unit_features.filter(f => f.unitId === id).forEach(f => {
-            window.Data.remove("unit_features", f.id);
-          });
-          state.maintenance.filter(m => m.unitId === id).forEach(m => {
-            window.Data.remove("maintenance", m.id);
-          });
-          
-          window.Data.remove("units", id);
-          window.location.reload();
-        });
-      });
-
-      document.querySelectorAll("[data-open-unit]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const id = btn.getAttribute("data-open-unit");
-          window.location.hash = `#unit?unitId=${id}&tab=tenants`;
-        });
-      });
-
-      document.querySelectorAll("[data-delete-property]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const id = btn.getAttribute("data-delete-property");
-          const units = state.units.filter(u => u.propertyId === id);
-          
-          if (units.length > 0) {
-            alert("Cannot delete property with units. Delete all units first.");
-            return;
-          }
-
-          if (!confirm("Delete this property?")) return;
-          window.Data.remove("properties", id);
-          window.location.reload();
-        });
-      });
-    }
-
-    if (key === "vendors") {
-      const form = document.getElementById("addVendorForm");
-      form?.addEventListener("submit", (e) => {
-        e.preventDefault();
+      case "addVendorForm": {
         const name = form.name.value.trim();
         const category = form.category.value;
         const phone = form.phone.value.trim();
         const emailV = form.email.value.trim();
 
-        if (!name) return alert("Vendor name is required.");
+        if (!name) {
+          alert("Vendor name is required.");
+          return;
+        }
 
-        const id = "v" + Math.random().toString(16).slice(2, 8);
-        window.Data.add("vendors", { id, name, category, phone, email: emailV });
-        window.location.reload();
-      });
-
-      document.querySelectorAll("[data-del-vendor]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const id = btn.getAttribute("data-del-vendor");
-          if (!confirm("Delete this vendor?")) return;
-          window.Data.remove("vendors", id);
-          window.location.reload();
+        window.Data.add(COLLECTIONS.VENDORS, {
+          id: generateId(ID_PREFIX.VENDOR),
+          name,
+          category,
+          phone,
+          email: emailV
         });
-      });
-    }
+        form.reset();
+        render();
+        break;
+      }
 
-    if (key === "maintenance") {
-      // Add maintenance from main maintenance page
-      const form = document.getElementById("addMaintenanceForm");
-      form?.addEventListener("submit", (e) => {
-        e.preventDefault();
+      case "addMaintenanceForm": {
         const unitId = form.unitId.value;
         const title = form.title.value.trim();
         const category = form.category.value;
         const priority = form.priority.value;
         const description = form.description.value.trim();
-        
-        if (!unitId || !title) return alert("Unit and title are required.");
 
-        const id = "m" + Math.random().toString(16).slice(2, 8);
-        window.Data.add("maintenance", {
-          id, unitId, title, category, priority, description,
-          status: "Open",
+        if (!unitId || !title) {
+          alert("Unit and title are required.");
+          return;
+        }
+
+        const maintId = generateId(ID_PREFIX.MAINTENANCE);
+        window.Data.add(COLLECTIONS.MAINTENANCE, {
+          id: maintId,
+          unitId,
+          title,
+          category,
+          priority,
+          description,
+          status: MAINTENANCE_STATUS.OPEN,
           created: today(),
           vendorId: "",
           featureId: ""
         });
 
-        window.Data.add("notifications", {
-          id: "n" + id,
-          type: "Maintenance",
+        window.Data.add(COLLECTIONS.NOTIFICATIONS, {
+          id: generateId(ID_PREFIX.NOTIFICATION),
+          type: NOTIFICATION_TYPES.MAINTENANCE,
           text: `New maintenance request: ${title}`,
           created: today()
         });
 
-        window.location.reload();
-      });
-
-      // Filter functionality
-      document.getElementById("filterStatus")?.addEventListener("change", () => {
+        form.reset();
         render();
-      });
-      document.getElementById("filterUnit")?.addEventListener("change", () => {
+        break;
+      }
+
+      case "addTenantForUnit": {
+        const { params } = parseHash();
+        const unitId = params.get("unitId");
+        const name = form.name.value.trim();
+        const emailT = form.email.value.trim().toLowerCase();
+        const phone = form.phone.value.trim();
+        if (!name || !emailT) return;
+
+        window.Data.add(COLLECTIONS.TENANTS, {
+          id: generateId(ID_PREFIX.TENANT),
+          name,
+          email: emailT,
+          phone: phone || "",
+          unitId
+        });
+        form.reset();
         render();
-      });
+        break;
+      }
 
-      // Advance maintenance status
-      document.querySelectorAll("[data-maint-advance]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const id = btn.getAttribute("data-maint-advance");
-          const next = btn.getAttribute("data-next");
-          const item = state.maintenance.find(m => m.id === id);
-          if (!item) return;
+      case "addFeatureForUnit": {
+        const { params } = parseHash();
+        const unitId = params.get("unitId");
+        const category = form.category.value;
+        const name = form.name.value.trim();
+        const manufacturer = form.manufacturer.value.trim();
+        const model = form.model.value.trim();
+        const installDate = form.installDate.value;
+        const warrantyExpires = form.warrantyExpires.value;
+        const lastServiceDate = form.lastServiceDate.value;
+        const notes = form.notes.value.trim();
 
-          if (next === "Complete") {
-            const costStr = prompt("Enter completion cost (optional):", "0");
-            const cost = Number(costStr) || 0;
-            
-            const histId = "mh" + Math.random().toString(16).slice(2, 8);
-            window.Data.add("maintenance_history", {
-              id: histId,
-              unitId: item.unitId,
-              title: item.title,
-              category: item.category,
-              status: "Complete",
-              cost: cost,
-              vendorId: item.vendorId || "",
-              featureId: item.featureId || "",
-              completed: today()
-            });
-            window.Data.remove("maintenance", item.id);
-          } else {
-            window.Data.upsert("maintenance", { ...item, status: next });
-          }
+        if (!name) {
+          alert("Feature name is required.");
+          return;
+        }
 
-          window.location.reload();
+        window.Data.add(COLLECTIONS.UNIT_FEATURES, {
+          id: generateId(ID_PREFIX.FEATURE),
+          unitId,
+          category,
+          name,
+          manufacturer,
+          model,
+          installDate,
+          warrantyExpires,
+          lastServiceDate,
+          notes
         });
-      });
-    }
+        form.reset();
+        render();
+        break;
+      }
 
-    if (key === "notifications") {
-      document.getElementById("clearNotifications")?.addEventListener("click", () => {
-        if (!confirm("Clear all notifications?")) return;
-        window.Data.write(state => {
-          state.notifications = [];
+      case "addMaintForUnit": {
+        const { params } = parseHash();
+        const unitId = params.get("unitId");
+        const title = form.title.value.trim();
+        const category = form.category.value;
+        const priority = form.priority.value;
+        const featureId = form.featureId.value || "";
+        const description = form.description.value.trim();
+        if (!title) return;
+
+        window.Data.add(COLLECTIONS.MAINTENANCE, {
+          id: generateId(ID_PREFIX.MAINTENANCE),
+          unitId,
+          title,
+          category,
+          priority,
+          description,
+          featureId,
+          status: MAINTENANCE_STATUS.OPEN,
+          created: today(),
+          vendorId: ""
         });
-        window.location.reload();
-      });
+
+        window.Data.add(COLLECTIONS.NOTIFICATIONS, {
+          id: generateId(ID_PREFIX.NOTIFICATION),
+          type: NOTIFICATION_TYPES.MAINTENANCE,
+          text: `New maintenance request: ${title}`,
+          created: today()
+        });
+
+        form.reset();
+        render();
+        break;
+      }
+
+      case "addLeaseForUnit": {
+        const { params } = parseHash();
+        const unitId = params.get("unitId");
+        const tenantId = form.tenantId.value;
+        const start = form.start.value;
+        const end = form.end.value;
+        const rent = Number(form.rent.value || 0);
+        const deposit = Number(form.deposit.value || 0);
+
+        if (!tenantId || !start || !end || !rent) {
+          alert("Please fill all required fields.");
+          return;
+        }
+
+        const leaseId = generateId(ID_PREFIX.LEASE);
+        window.Data.add(COLLECTIONS.LEASES, {
+          id: leaseId,
+          unitId,
+          tenantId,
+          start,
+          end,
+          rent,
+          deposit
+        });
+
+        const unit = state.units.find(u => u.id === unitId);
+        const tenant = state.tenants.find(t => t.id === tenantId);
+        if (unit && tenant) {
+          window.Data.upsert(COLLECTIONS.UNITS, {
+            ...unit,
+            status: UNIT_STATUS.OCCUPIED,
+            tenantName: tenant.name,
+            leaseActive: true
+          });
+        }
+
+        createPaymentRecords(leaseId, start, end, rent);
+        form.reset();
+        render();
+        break;
+      }
+
+      case "profileForm": {
+        const name = form.name.value.trim();
+        const phone = form.phone.value.trim();
+        const company = form.company.value.trim();
+        const portfolioName = form.portfolioName.value.trim();
+
+        if (!phone) {
+          alert("Phone is required.");
+          return;
+        }
+
+        window.Data.setProfile(email, {
+          completed: true,
+          phone,
+          company,
+          portfolioName,
+          role: role
+        });
+
+        alert("Profile updated successfully!");
+        setHash("dashboard");
+        break;
+      }
     }
   }
+
+  function handleViewChange(e) {
+    const target = e.target;
+
+    // Filter change handlers for maintenance page
+    if (target.id === "filterStatus" || target.id === "filterUnit") {
+      render();
+    }
+  }
+
+  // ===== HELPER FUNCTIONS =====
+
+  function createPaymentRecords(leaseId, startDate, endDate, rent) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    let current = new Date(start.getFullYear(), start.getMonth(), 1);
+
+    while (current <= end) {
+      const month = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}`;
+
+      window.Data.add(COLLECTIONS.PAYMENTS, {
+        id: generateId(ID_PREFIX.PAYMENT),
+        leaseId: leaseId,
+        month: month,
+        amount: rent,
+        status: PAYMENT_STATUS.UNPAID
+      });
+
+      current.setMonth(current.getMonth() + 1);
+    }
+  }
+
+  function getMaintenanceCategories() {
+    return [
+      CATEGORIES.GENERAL,
+      CATEGORIES.HVAC,
+      CATEGORIES.PLUMBING,
+      CATEGORIES.ELECTRICAL,
+      CATEGORIES.APPLIANCE,
+      CATEGORIES.ROOF,
+      CATEGORIES.PEST_CONTROL,
+      CATEGORIES.CLEANING,
+      CATEGORIES.FLOORING,
+      CATEGORIES.WINDOWS,
+      CATEGORIES.PAINTING
+    ];
+  }
+
+  function getFeatureCategories() {
+    return [
+      CATEGORIES.APPLIANCE,
+      CATEGORIES.HVAC,
+      CATEGORIES.PLUMBING,
+      CATEGORIES.ELECTRICAL,
+      CATEGORIES.FLOORING,
+      CATEGORIES.ROOF,
+      CATEGORIES.WINDOWS,
+      CATEGORIES.EXTERIOR,
+      CATEGORIES.SAFETY,
+      CATEGORIES.OTHER
+    ];
+  }
+
+  function getVendorCategories() {
+    return [
+      CATEGORIES.GENERAL,
+      CATEGORIES.HVAC,
+      CATEGORIES.PLUMBING,
+      CATEGORIES.ELECTRICAL,
+      CATEGORIES.APPLIANCE,
+      CATEGORIES.ROOF,
+      CATEGORIES.CLEANING,
+      CATEGORIES.PEST_CONTROL,
+      CATEGORIES.LANDSCAPING,
+      CATEGORIES.PAINTING
+    ];
+  }
+
+  function getPropertyTypes() {
+    return Object.values(PROPERTY_TYPES);
+  }
+
+  // ===== VIEW FUNCTIONS =====
 
   function viewUnitDetail(unitId, tab) {
     const state = window.Data.db();
@@ -389,7 +716,6 @@
     if (!unit) return `<div class="panel"><div class="panel-h">Unit not found</div></div>`;
 
     const prop = state.properties.find(p => p.id === unit.propertyId);
-
     const tenants = state.tenants.filter(t => t.unitId === unitId);
     const leases = state.leases.filter(l => l.unitId === unitId);
     const maint = state.maintenance.filter(m => m.unitId === unitId);
@@ -402,8 +728,8 @@
       <div class="panel">
         <div class="row between">
           <div>
-            <div class="panel-h">${esc(prop?.name || "Property")} • ${esc(unit.label)}</div>
-            <div class="muted small">Address: ${esc(prop?.address || "—")} | ${unit.sqft} sqft | $${fmt(unit.rent)}/mo</div>
+            <div class="panel-h">${esc(prop?.name || "Property")} \u2022 ${esc(unit.label)}</div>
+            <div class="muted small">Address: ${esc(prop?.address || "\u2014")} | ${unit.sqft} sqft | $${fmt(unit.rent)}/mo</div>
           </div>
           <div>
             ${pillStatus(unit.status)}
@@ -411,10 +737,10 @@
         </div>
 
         <div class="tabs mt12">
-          <a class="tab ${tab==="tenants"?"tab-active":""}" href="${tabLink("tenants")}">Tenants</a>
-          <a class="tab ${tab==="leases"?"tab-active":""}" href="${tabLink("leases")}">Leases</a>
-          <a class="tab ${tab==="maintenance"?"tab-active":""}" href="${tabLink("maintenance")}">Maintenance</a>
-          <a class="tab ${tab==="features"?"tab-active":""}" href="${tabLink("features")}">Features & Appliances</a>
+          <a class="tab ${tab === "tenants" ? "tab-active" : ""}" href="${tabLink("tenants")}">Tenants</a>
+          <a class="tab ${tab === "leases" ? "tab-active" : ""}" href="${tabLink("leases")}">Leases</a>
+          <a class="tab ${tab === "maintenance" ? "tab-active" : ""}" href="${tabLink("maintenance")}">Maintenance</a>
+          <a class="tab ${tab === "features" ? "tab-active" : ""}" href="${tabLink("features")}">Features & Appliances</a>
         </div>
       </div>
 
@@ -427,255 +753,19 @@
     `;
   }
 
-  function wireUnitDetail(unitId, tab) {
-    const state = window.Data.db();
-
-    const tenantForm = document.getElementById("addTenantForUnit");
-    tenantForm?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const name = tenantForm.name.value.trim();
-      const emailT = tenantForm.email.value.trim().toLowerCase();
-      const phone = tenantForm.phone.value.trim();
-      if (!name || !emailT) return;
-
-      window.Data.add("tenants", { 
-        id: "t" + Math.random().toString(16).slice(2, 8), 
-        name, 
-        email: emailT, 
-        phone: phone || "",
-        unitId 
-      });
-      window.location.reload();
-    });
-
-    document.querySelectorAll("[data-delete-tenant]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const id = btn.getAttribute("data-delete-tenant");
-        if (!confirm("Delete this tenant?")) return;
-        window.Data.remove("tenants", id);
-        window.location.reload();
-      });
-    });
-
-    const featureForm = document.getElementById("addFeatureForUnit");
-    featureForm?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const category = featureForm.category.value;
-      const name = featureForm.name.value.trim();
-      const manufacturer = featureForm.manufacturer.value.trim();
-      const model = featureForm.model.value.trim();
-      const installDate = featureForm.installDate.value;
-      const warrantyExpires = featureForm.warrantyExpires.value;
-      const lastServiceDate = featureForm.lastServiceDate.value;
-      const notes = featureForm.notes.value.trim();
-      
-      if (!name) return alert("Feature name is required.");
-
-      window.Data.add("unit_features", { 
-        id: "f" + Math.random().toString(16).slice(2, 8), 
-        unitId, 
-        category, 
-        name,
-        manufacturer,
-        model,
-        installDate,
-        warrantyExpires,
-        lastServiceDate,
-        notes
-      });
-      window.location.reload();
-    });
-
-    document.querySelectorAll("[data-delete-feature]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const id = btn.getAttribute("data-delete-feature");
-        if (!confirm("Delete this feature?")) return;
-        window.Data.remove("unit_features", id);
-        window.location.reload();
-      });
-    });
-
-    const maintForm = document.getElementById("addMaintForUnit");
-    maintForm?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const title = maintForm.title.value.trim();
-      const category = maintForm.category.value;
-      const priority = maintForm.priority.value;
-      const featureId = maintForm.featureId.value || "";
-      const description = maintForm.description.value.trim();
-      if (!title) return;
-
-      window.Data.add("maintenance", {
-        id: "m" + Math.random().toString(16).slice(2, 8),
-        unitId,
-        title,
-        category,
-        priority,
-        description,
-        featureId,
-        status: "Open",
-        created: today(),
-        vendorId: ""
-      });
-
-      window.Data.add("notifications", {
-        id: "n" + Math.random().toString(16).slice(2, 8),
-        type: "Maintenance",
-        text: `New maintenance request: ${title}`,
-        created: today()
-      });
-
-      window.location.reload();
-    });
-
-    document.querySelectorAll("[data-maint-advance]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const id = btn.getAttribute("data-maint-advance");
-        const next = btn.getAttribute("data-next");
-        const item = state.maintenance.find(m => m.id === id);
-        if (!item) return;
-
-        if (next === "Complete") {
-          const costStr = prompt("Enter completion cost (optional):", "0");
-          const cost = Number(costStr) || 0;
-          
-          const histId = "mh" + Math.random().toString(16).slice(2, 8);
-          window.Data.add("maintenance_history", {
-            id: histId,
-            unitId: item.unitId,
-            title: item.title,
-            category: item.category,
-            status: "Complete",
-            cost: cost,
-            vendorId: item.vendorId || "",
-            featureId: item.featureId || "",
-            completed: today()
-          });
-          window.Data.remove("maintenance", item.id);
-        } else {
-          window.Data.upsert("maintenance", { ...item, status: next });
-        }
-
-        window.location.reload();
-      });
-    });
-
-    const leaseForm = document.getElementById("addLeaseForUnit");
-    leaseForm?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const tenantId = leaseForm.tenantId.value;
-      const start = leaseForm.start.value;
-      const end = leaseForm.end.value;
-      const rent = Number(leaseForm.rent.value || 0);
-      const deposit = Number(leaseForm.deposit.value || 0);
-
-      if (!tenantId || !start || !end || !rent) {
-        return alert("Please fill all required fields.");
-      }
-
-      const leaseId = "l" + Math.random().toString(16).slice(2, 8);
-      window.Data.add("leases", {
-        id: leaseId,
-        unitId,
-        tenantId,
-        start,
-        end,
-        rent,
-        deposit
-      });
-
-      // Update unit status
-      const unit = state.units.find(u => u.id === unitId);
-      const tenant = state.tenants.find(t => t.id === tenantId);
-      if (unit && tenant) {
-        window.Data.upsert("units", {
-          ...unit,
-          status: "Occupied",
-          tenantName: tenant.name,
-          leaseActive: true
-        });
-      }
-
-      // Create payment records for the lease duration
-      createPaymentRecords(leaseId, start, end, rent);
-
-      window.location.reload();
-    });
-
-    document.querySelectorAll("[data-end-lease]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const leaseId = btn.getAttribute("data-end-lease");
-        const lease = state.leases.find(l => l.id === leaseId);
-        if (!lease) return;
-
-        if (!confirm("End this lease? Unit will be marked as vacant.")) return;
-
-        // Update unit status
-        const unit = state.units.find(u => u.id === lease.unitId);
-        if (unit) {
-          window.Data.upsert("units", {
-            ...unit,
-            status: "Vacant",
-            tenantName: "",
-            leaseActive: false
-          });
-        }
-
-        // Mark lease as inactive
-        window.Data.upsert("leases", { ...lease, active: false });
-
-        window.location.reload();
-      });
-    });
-
-    document.querySelectorAll("[data-toggle-payment]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const paymentId = btn.getAttribute("data-toggle-payment");
-        const payment = state.payments.find(p => p.id === paymentId);
-        if (!payment) return;
-
-        const newStatus = payment.status === "Paid" ? "Unpaid" : "Paid";
-        window.Data.upsert("payments", { ...payment, status: newStatus });
-        window.location.reload();
-      });
-    });
-  }
-
-  function createPaymentRecords(leaseId, startDate, endDate, rent) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    let current = new Date(start.getFullYear(), start.getMonth(), 1);
-    
-    while (current <= end) {
-      const month = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
-      
-      const paymentId = "pay" + Math.random().toString(16).slice(2, 8);
-      window.Data.add("payments", {
-        id: paymentId,
-        leaseId: leaseId,
-        month: month,
-        amount: rent,
-        status: "Unpaid"
-      });
-      
-      current.setMonth(current.getMonth() + 1);
-    }
-  }
-
   function unitTenantsPanel(unitId, tenants) {
     const rows = tenants.map(t => [
       esc(t.name),
       esc(t.email),
-      esc(t.phone || "—"),
-      `<button class="btn btn-ghost" data-delete-tenant="${t.id}">Remove</button>`
+      esc(t.phone || "\u2014"),
+      `<button class="btn btn-ghost" data-action="delete-tenant" data-id="${t.id}">Remove</button>`
     ]);
 
     return `
       <div class="panel">
         <div class="panel-h">Tenants</div>
         <div class="muted small mb12">Manage tenants for this unit. Create a lease to officially assign them.</div>
-        
+
         <form class="form compact" id="addTenantForUnit">
           <label>Name <input name="name" placeholder="Full name" required></label>
           <label>Email <input name="email" type="email" placeholder="tenant@email.com" required></label>
@@ -684,7 +774,7 @@
         </form>
 
         <div class="mt12">
-          ${tableHtml(["Name","Email","Phone","Actions"], rows)}
+          ${createTable(["Name", "Email", "Phone", "Actions"], rows)}
         </div>
       </div>
     `;
@@ -692,8 +782,8 @@
 
   function unitLeasesPanel(unitId, leases, tenants) {
     const state = window.Data.db();
-    
-    const tenantOptions = tenants.map(t => 
+
+    const tenantOptions = tenants.map(t =>
       `<option value="${t.id}">${esc(t.name)}</option>`
     ).join("");
 
@@ -701,8 +791,8 @@
     const leaseRows = activeLeases.map(l => {
       const tenant = tenants.find(t => t.id === l.tenantId);
       const payments = state.payments.filter(p => p.leaseId === l.id);
-      const paidCount = payments.filter(p => p.status === "Paid").length;
-      
+      const paidCount = payments.filter(p => p.status === PAYMENT_STATUS.PAID).length;
+
       return [
         esc(tenant?.name || "Unknown"),
         l.start,
@@ -710,32 +800,31 @@
         "$" + fmt(l.rent),
         "$" + fmt(l.deposit),
         `${paidCount}/${payments.length} paid`,
-        `<button class="btn btn-ghost" data-end-lease="${l.id}">End Lease</button>`
+        `<button class="btn btn-ghost" data-action="end-lease" data-id="${l.id}">End Lease</button>`
       ];
     });
 
-    // Payment tracking for active leases
     const paymentSection = activeLeases.length > 0 ? `
       <div class="panel mt16">
         <div class="panel-h">Payment Tracking</div>
         ${activeLeases.map(lease => {
           const tenant = tenants.find(t => t.id === lease.tenantId);
           const payments = state.payments.filter(p => p.leaseId === lease.id).slice(0, 6);
-          
+
           const paymentRows = payments.map(p => [
-            esc(tenant?.name || "—"),
+            esc(tenant?.name || "\u2014"),
             p.month,
             "$" + fmt(p.amount),
             pillStatus(p.status),
-            `<button class="btn btn-ghost" data-toggle-payment="${p.id}">
-              ${p.status === "Paid" ? "Mark Unpaid" : "Mark Paid"}
+            `<button class="btn btn-ghost" data-action="toggle-payment" data-id="${p.id}">
+              ${p.status === PAYMENT_STATUS.PAID ? "Mark Unpaid" : "Mark Paid"}
             </button>`
           ]);
 
           return `
             <div class="mb16">
               <div class="muted small mb8"><b>${esc(tenant?.name || "Unknown")}</b> (${lease.start} to ${lease.end})</div>
-              ${tableHtml(["Tenant","Month","Amount","Status","Action"], paymentRows)}
+              ${createTable(["Tenant", "Month", "Amount", "Status", "Action"], paymentRows)}
             </div>
           `;
         }).join("")}
@@ -745,9 +834,9 @@
     return `
       <div class="panel">
         <div class="panel-h">Active Leases</div>
-        
-        ${activeLeases.length > 0 ? tableHtml(
-          ["Tenant","Start","End","Rent","Deposit","Payments","Actions"], 
+
+        ${activeLeases.length > 0 ? createTable(
+          ["Tenant", "Start", "End", "Rent", "Deposit", "Payments", "Actions"],
           leaseRows
         ) : `<div class="muted small">No active leases for this unit.</div>`}
 
@@ -776,21 +865,20 @@
 
   function unitMaintenancePanel(unitId, maint, maintHistory, features) {
     const featureOptions = [`<option value="">(optional) Link to a feature</option>`].concat(
-      features.map(f => `<option value="${f.id}">${esc(f.category)} • ${esc(f.name)}</option>`)
+      features.map(f => `<option value="${f.id}">${esc(f.category)} \u2022 ${esc(f.name)}</option>`)
     ).join("");
 
     const rows = maint.map(m => {
       const f = features.find(x => x.id === m.featureId);
-      const next = m.status === "Open" ? "In Progress" : "Complete";
-      const priorityBadge = m.priority === "High" ? "pill-warn" : m.priority === "Medium" ? "pill-mid" : "pill-ok";
+      const next = m.status === MAINTENANCE_STATUS.OPEN ? MAINTENANCE_STATUS.IN_PROGRESS : MAINTENANCE_STATUS.COMPLETE;
       return [
         esc(m.title),
-        esc(m.category || "—"),
-        f ? esc(`${f.category} • ${f.name}`) : "—",
-        `<span class="pill ${priorityBadge}">${esc(m.priority || "Low")}</span>`,
+        esc(m.category || "\u2014"),
+        f ? esc(`${f.category} \u2022 ${f.name}`) : "\u2014",
+        priorityBadge(m.priority),
         pillStatus(m.status),
         m.created,
-        `<button class="btn btn-ghost" data-maint-advance="${m.id}" data-next="${next}">→ ${next}</button>`
+        `<button class="btn btn-ghost" data-action="advance-maintenance" data-id="${m.id}" data-next="${next}">\u2192 ${next}</button>`
       ];
     });
 
@@ -798,12 +886,14 @@
       const f = features.find(x => x.id === h.featureId);
       return [
         esc(h.title),
-        esc(h.category || "—"),
-        f ? esc(`${f.category} • ${f.name}`) : "—",
+        esc(h.category || "\u2014"),
+        f ? esc(`${f.category} \u2022 ${f.name}`) : "\u2014",
         h.completed,
         "$" + fmt(h.cost)
       ];
     });
+
+    const categoryOptions = createCategoryOptions(getMaintenanceCategories());
 
     return `
       <div class="panel">
@@ -812,18 +902,13 @@
         <form class="form compact mt12" id="addMaintForUnit">
           <label>Issue description <input name="title" placeholder="e.g., leaking faucet in bathroom" required></label>
           <label>Category
-            <select name="category">
-              <option>General</option><option>HVAC</option><option>Plumbing</option>
-              <option>Electrical</option><option>Appliance</option><option>Roof</option>
-              <option>Pest Control</option><option>Cleaning</option><option>Flooring</option>
-              <option>Windows</option><option>Painting</option>
-            </select>
+            <select name="category">${categoryOptions}</select>
           </label>
           <label>Priority
             <select name="priority">
-              <option>Low</option>
-              <option selected>Medium</option>
-              <option>High</option>
+              <option>${PRIORITY.LOW}</option>
+              <option selected>${PRIORITY.MEDIUM}</option>
+              <option>${PRIORITY.HIGH}</option>
             </select>
           </label>
           <label>Related feature (optional)
@@ -834,7 +919,7 @@
         </form>
 
         <div class="mt12">
-          ${maint.length > 0 ? tableHtml(["Issue","Category","Feature","Priority","Status","Created","Action"], rows) 
+          ${maint.length > 0 ? createTable(["Issue", "Category", "Feature", "Priority", "Status", "Created", "Action"], rows)
             : `<div class="muted small">No active maintenance requests.</div>`}
         </div>
       </div>
@@ -842,7 +927,7 @@
       ${maintHistory.length > 0 ? `
       <div class="panel mt16">
         <div class="panel-h">Maintenance History</div>
-        ${tableHtml(["Issue","Category","Feature","Completed","Cost"], historyRows)}
+        ${createTable(["Issue", "Category", "Feature", "Completed", "Cost"], historyRows)}
       </div>
       ` : ""}
     `;
@@ -858,7 +943,7 @@
               <div class="feature-title">${esc(f.name)}</div>
               <span class="feature-category">${esc(f.category)}</span>
             </div>
-            <button class="btn btn-ghost" data-delete-feature="${f.id}">Delete</button>
+            <button class="btn btn-ghost" data-action="delete-feature" data-id="${f.id}">Delete</button>
           </div>
           ${hasDetails ? `
             <div class="feature-details">
@@ -874,6 +959,8 @@
       `;
     }).join("");
 
+    const categoryOptions = createCategoryOptions(getFeatureCategories());
+
     return `
       <div class="panel">
         <div class="panel-h">Features & Appliances</div>
@@ -882,18 +969,7 @@
         <form class="form compact" id="addFeatureForUnit">
           <div class="grid2">
             <label>Category
-              <select name="category">
-                <option>Appliance</option>
-                <option>HVAC</option>
-                <option>Plumbing</option>
-                <option>Electrical</option>
-                <option>Flooring</option>
-                <option>Roof</option>
-                <option>Windows</option>
-                <option>Exterior</option>
-                <option>Safety</option>
-                <option>Other</option>
-              </select>
+              <select name="category">${categoryOptions}</select>
             </label>
             <label>Feature name <input name="name" placeholder="e.g., Dishwasher, Hardwood Floors" required></label>
           </div>
@@ -917,11 +993,12 @@
     `;
   }
 
-  // ----- TOP-LEVEL VIEWS -----
+  // ===== TOP-LEVEL VIEWS =====
+
   function viewDashboard() {
     const state = window.Data.db();
     const leases = state.leases.filter(l => l.active !== false);
-    const expiringSoon = leases.slice().sort((a,b) => (a.end > b.end ? 1 : -1)).slice(0, 5);
+    const expiringSoon = leases.slice().sort((a, b) => (a.end > b.end ? 1 : -1)).slice(0, 5);
 
     const totalRevenue = leases.reduce((sum, l) => sum + l.rent, 0);
     const activeMaintenanceCount = state.maintenance.length;
@@ -959,20 +1036,20 @@
               <div class="muted small">${n.created}</div>
             </div>
           `).join("") || `<div class="muted small">No notifications</div>`}
-          <a href="#notifications" class="link mt12" style="display:block;">View all notifications →</a>
+          <a href="#notifications" class="link mt12" style="display:block;">View all notifications \u2192</a>
         </div>
       </div>
 
       <div class="panel mt16">
         <div class="panel-h">Current Month Rent Status (Jan 2026)</div>
-        ${tableHtml(["Unit","Tenant","Amount","Status"], state.payments.filter(p => p.month === "2026-01").map(p => {
+        ${createTable(["Unit", "Tenant", "Amount", "Status"], state.payments.filter(p => p.month === "2026-01").map(p => {
           const lease = state.leases.find(l => l.id === p.leaseId);
           const unit = state.units.find(u => u.id === lease?.unitId);
           const tenant = state.tenants.find(t => t.id === lease?.tenantId);
           return [
-            esc(unitLabel(unit, state)),
-            esc(tenant?.name || "—"),
-            "$" + fmt(p.amount), 
+            esc(getUnitLabel(unit, state)),
+            esc(tenant?.name || "\u2014"),
+            "$" + fmt(p.amount),
             pillStatus(p.status)
           ];
         }))}
@@ -980,12 +1057,12 @@
 
       <div class="panel mt16">
         <div class="panel-h">Leases Expiring Soon</div>
-        ${expiringSoon.length > 0 ? tableHtml(["Unit","Tenant","End Date","Rent"], expiringSoon.map(l => {
+        ${expiringSoon.length > 0 ? createTable(["Unit", "Tenant", "End Date", "Rent"], expiringSoon.map(l => {
           const unit = state.units.find(u => u.id === l.unitId);
           const tenant = state.tenants.find(t => t.id === l.tenantId);
           return [
-            esc(unitLabel(unit, state)),
-            esc(tenant?.name || "—"),
+            esc(getUnitLabel(unit, state)),
+            esc(tenant?.name || "\u2014"),
             l.end,
             "$" + fmt(l.rent)
           ];
@@ -1001,16 +1078,18 @@
       `<option value="${p.id}">${esc(p.name)}</option>`
     ).join("");
 
+    const propertyTypeOptions = createCategoryOptions(getPropertyTypes());
+
     const props = state.properties.map(p => {
       const units = state.units.filter(u => u.propertyId === p.id);
-      const occupiedCount = units.filter(u => u.status === "Occupied").length;
+      const occupiedCount = units.filter(u => u.status === UNIT_STATUS.OCCUPIED).length;
 
       return `
         <div class="panel">
           <div class="row between">
             <div>
               <div class="panel-h">${esc(p.name)}</div>
-              <div class="muted small">${esc(p.address)} • ${esc(p.type)}</div>
+              <div class="muted small">${esc(p.address)} \u2022 ${esc(p.type)}</div>
             </div>
             <div>
               <span class="pill pill-mid">${units.length} units</span>
@@ -1019,19 +1098,19 @@
           </div>
 
           <div class="mt12">
-            ${units.length > 0 ? tableHtml(["Unit","Status","Rent","Sq Ft","Tenant","Actions"], units.map(u => [
+            ${units.length > 0 ? createTable(["Unit", "Status", "Rent", "Sq Ft", "Tenant", "Actions"], units.map(u => [
               esc(u.label),
               pillStatus(u.status),
               "$" + fmt(u.rent),
               fmt(u.sqft),
-              esc(u.tenantName || "—"),
-              `<button class="btn btn-ghost" data-open-unit="${u.id}">Open</button>
-               <button class="btn btn-ghost" data-delete-unit="${u.id}">Delete</button>`
+              esc(u.tenantName || "\u2014"),
+              `<button class="btn btn-ghost" data-action="open-unit" data-id="${u.id}">Open</button>
+               <button class="btn btn-ghost" data-action="delete-unit" data-id="${u.id}">Delete</button>`
             ])) : `<div class="muted small">No units yet. Add units using the form on the right.</div>`}
           </div>
 
           <div class="mt12">
-            <button class="btn btn-ghost" data-delete-property="${p.id}">Delete Property</button>
+            <button class="btn btn-ghost" data-action="delete-property" data-id="${p.id}">Delete Property</button>
           </div>
         </div>
       `;
@@ -1045,15 +1124,7 @@
             <label>Property name <input name="name" placeholder="e.g., Capitol Hill Apartments" required></label>
             <label>Full address <input name="address" placeholder="123 Main St, City, State ZIP" required></label>
             <label>Property type
-              <select name="type">
-                <option>Apartment</option>
-                <option>House</option>
-                <option>Condo</option>
-                <option>Townhome</option>
-                <option>Duplex</option>
-                <option>Triplex</option>
-                <option>Multi-family</option>
-              </select>
+              <select name="type">${propertyTypeOptions}</select>
             </label>
             <button class="btn" type="submit">Add property</button>
           </form>
@@ -1090,12 +1161,10 @@
 
   function viewMaintenance() {
     const state = window.Data.db();
-    
-    // Get filter values
+
     const filterStatus = document.getElementById("filterStatus")?.value || "all";
     const filterUnit = document.getElementById("filterUnit")?.value || "all";
-    
-    // Filter maintenance
+
     let filteredMaint = state.maintenance;
     if (filterStatus !== "all") {
       filteredMaint = filteredMaint.filter(m => m.status === filterStatus);
@@ -1106,36 +1175,36 @@
 
     const unitOptions = state.units.map(u => {
       const prop = state.properties.find(p => p.id === u.propertyId);
-      return `<option value="${u.id}">${esc(prop?.name || "Property")} • ${esc(u.label)}</option>`;
+      return `<option value="${u.id}">${esc(prop?.name || "Property")} \u2022 ${esc(u.label)}</option>`;
     }).join("");
+
+    const categoryOptions = createCategoryOptions(getMaintenanceCategories());
 
     const rows = filteredMaint.map(m => {
       const unit = state.units.find(u => u.id === m.unitId);
       const feature = state.unit_features.find(f => f.id === m.featureId);
-      const next = m.status === "Open" ? "In Progress" : "Complete";
-      const priorityBadge = m.priority === "High" ? "pill-warn" : m.priority === "Medium" ? "pill-mid" : "pill-ok";
-      
+      const next = m.status === MAINTENANCE_STATUS.OPEN ? MAINTENANCE_STATUS.IN_PROGRESS : MAINTENANCE_STATUS.COMPLETE;
+
       return [
-        esc(unitLabel(unit, state)),
+        esc(getUnitLabel(unit, state)),
         esc(m.title),
-        esc(m.category || "—"),
-        feature ? esc(`${feature.category} • ${feature.name}`) : "—",
-        `<span class="pill ${priorityBadge}">${esc(m.priority || "Low")}</span>`,
+        esc(m.category || "\u2014"),
+        feature ? esc(`${feature.category} \u2022 ${feature.name}`) : "\u2014",
+        priorityBadge(m.priority),
         pillStatus(m.status),
         m.created,
-        `<button class="btn btn-ghost" data-maint-advance="${m.id}" data-next="${next}">→ ${next}</button>`
+        `<button class="btn btn-ghost" data-action="advance-maintenance" data-id="${m.id}" data-next="${next}">\u2192 ${next}</button>`
       ];
     });
 
-    // Maintenance history
-    const historyRows = (state.maintenance_history || []).slice().sort((a,b) => (a.completed < b.completed ? 1 : -1)).slice(0, 10).map(h => {
+    const historyRows = (state.maintenance_history || []).slice().sort((a, b) => (a.completed < b.completed ? 1 : -1)).slice(0, 10).map(h => {
       const unit = state.units.find(u => u.id === h.unitId);
       const feature = state.unit_features.find(f => f.id === h.featureId);
       return [
-        esc(unitLabel(unit, state)),
+        esc(getUnitLabel(unit, state)),
         esc(h.title),
-        esc(h.category || "—"),
-        feature ? esc(`${feature.category} • ${feature.name}`) : "—",
+        esc(h.category || "\u2014"),
+        feature ? esc(`${feature.category} \u2022 ${feature.name}`) : "\u2014",
         h.completed,
         "$" + fmt(h.cost)
       ];
@@ -1154,18 +1223,13 @@
             </label>
             <label>Issue description <input name="title" placeholder="e.g., leaking faucet" required></label>
             <label>Category
-              <select name="category">
-                <option>General</option><option>HVAC</option><option>Plumbing</option>
-                <option>Electrical</option><option>Appliance</option><option>Roof</option>
-                <option>Pest Control</option><option>Cleaning</option><option>Flooring</option>
-                <option>Windows</option><option>Painting</option>
-              </select>
+              <select name="category">${categoryOptions}</select>
             </label>
             <label>Priority
               <select name="priority">
-                <option>Low</option>
-                <option selected>Medium</option>
-                <option>High</option>
+                <option>${PRIORITY.LOW}</option>
+                <option selected>${PRIORITY.MEDIUM}</option>
+                <option>${PRIORITY.HIGH}</option>
               </select>
             </label>
             <label>Description <textarea name="description" placeholder="Additional details..."></textarea></label>
@@ -1178,11 +1242,11 @@
           <div class="stack">
             <div>
               <div class="muted small">Open Requests</div>
-              <div style="font-size:24px; font-weight:900;">${state.maintenance.filter(m => m.status === "Open").length}</div>
+              <div style="font-size:24px; font-weight:900;">${state.maintenance.filter(m => m.status === MAINTENANCE_STATUS.OPEN).length}</div>
             </div>
             <div>
               <div class="muted small">In Progress</div>
-              <div style="font-size:24px; font-weight:900;">${state.maintenance.filter(m => m.status === "In Progress").length}</div>
+              <div style="font-size:24px; font-weight:900;">${state.maintenance.filter(m => m.status === MAINTENANCE_STATUS.IN_PROGRESS).length}</div>
             </div>
             <div>
               <div class="muted small">Completed (All Time)</div>
@@ -1202,8 +1266,8 @@
           <div class="filters">
             <select id="filterStatus" class="filter">
               <option value="all">All Statuses</option>
-              <option value="Open">Open</option>
-              <option value="In Progress">In Progress</option>
+              <option value="${MAINTENANCE_STATUS.OPEN}">${MAINTENANCE_STATUS.OPEN}</option>
+              <option value="${MAINTENANCE_STATUS.IN_PROGRESS}">${MAINTENANCE_STATUS.IN_PROGRESS}</option>
             </select>
             <select id="filterUnit" class="filter">
               <option value="all">All Units</option>
@@ -1211,14 +1275,14 @@
             </select>
           </div>
         </div>
-        ${rows.length > 0 ? tableHtml(["Unit","Issue","Category","Feature","Priority","Status","Created","Action"], rows)
+        ${rows.length > 0 ? createTable(["Unit", "Issue", "Category", "Feature", "Priority", "Status", "Created", "Action"], rows)
           : `<div class="muted small">No active maintenance requests matching the filters.</div>`}
       </div>
 
       ${historyRows.length > 0 ? `
       <div class="panel mt16">
         <div class="panel-h">Recent Maintenance History (Last 10)</div>
-        ${tableHtml(["Unit","Issue","Category","Feature","Completed","Cost"], historyRows)}
+        ${createTable(["Unit", "Issue", "Category", "Feature", "Completed", "Cost"], historyRows)}
       </div>
       ` : ""}
     `;
@@ -1226,12 +1290,14 @@
 
   function viewVendors() {
     const state = window.Data.db();
+    const categoryOptions = createCategoryOptions(getVendorCategories());
+
     const rows = state.vendors.map(v => [
       esc(v.name),
-      esc(v.category || "—"),
-      esc(v.phone || "—"),
-      esc(v.email || "—"),
-      `<button class="btn btn-ghost" data-del-vendor="${v.id}">Delete</button>`
+      esc(v.category || "\u2014"),
+      esc(v.phone || "\u2014"),
+      esc(v.email || "\u2014"),
+      `<button class="btn btn-ghost" data-action="delete-vendor" data-id="${v.id}">Delete</button>`
     ]);
 
     return `
@@ -1241,18 +1307,7 @@
           <form id="addVendorForm" class="form compact">
             <label>Vendor name <input name="name" placeholder="ABC Plumbing" required></label>
             <label>Category
-              <select name="category">
-                <option>General</option>
-                <option>HVAC</option>
-                <option>Plumbing</option>
-                <option>Electrical</option>
-                <option>Appliance</option>
-                <option>Roof</option>
-                <option>Cleaning</option>
-                <option>Pest Control</option>
-                <option>Landscaping</option>
-                <option>Painting</option>
-              </select>
+              <select name="category">${categoryOptions}</select>
             </label>
             <label>Phone <input name="phone" type="tel" placeholder="555-555-5555"></label>
             <label>Email <input name="email" type="email" placeholder="vendor@email.com"></label>
@@ -1262,7 +1317,7 @@
 
         <div class="panel">
           <div class="panel-h">Vendor Directory</div>
-          ${state.vendors.length > 0 ? tableHtml(["Name","Category","Phone","Email","Action"], rows)
+          ${state.vendors.length > 0 ? createTable(["Name", "Category", "Phone", "Email", "Action"], rows)
             : `<div class="muted small">No vendors added yet.</div>`}
         </div>
       </div>
@@ -1271,22 +1326,20 @@
 
   function viewReports() {
     const state = window.Data.db();
-    
-    // Calculate financial metrics
+
     const totalRevenue = state.leases.filter(l => l.active !== false).reduce((sum, l) => sum + l.rent, 0);
     const janPayments = state.payments.filter(p => p.month === "2026-01");
-    const collected = janPayments.filter(p => p.status === "Paid").reduce((s, p) => s + p.amount, 0);
-    const outstanding = janPayments.filter(p => p.status !== "Paid").reduce((s, p) => s + p.amount, 0);
-    
+    const collected = janPayments.filter(p => p.status === PAYMENT_STATUS.PAID).reduce((s, p) => s + p.amount, 0);
+    const outstanding = janPayments.filter(p => p.status !== PAYMENT_STATUS.PAID).reduce((s, p) => s + p.amount, 0);
+
     const maintenanceCosts = (state.maintenance_history || []).reduce((sum, m) => sum + (m.cost || 0), 0);
-    
-    // Occupancy by property
+
     const propertyStats = state.properties.map(p => {
       const units = state.units.filter(u => u.propertyId === p.id);
-      const occupied = units.filter(u => u.status === "Occupied").length;
+      const occupied = units.filter(u => u.status === UNIT_STATUS.OCCUPIED).length;
       const occupancy = units.length ? Math.round((occupied / units.length) * 100) : 0;
-      const revenue = units.filter(u => u.status === "Occupied").reduce((sum, u) => sum + u.rent, 0);
-      
+      const revenue = units.filter(u => u.status === UNIT_STATUS.OCCUPIED).reduce((sum, u) => sum + u.rent, 0);
+
       return [
         esc(p.name),
         String(units.length),
@@ -1321,7 +1374,7 @@
 
       <div class="panel mt16">
         <div class="panel-h">Occupancy & Revenue by Property</div>
-        ${tableHtml(["Property","Units","Occupied","Occupancy","Monthly Revenue"], propertyStats)}
+        ${createTable(["Property", "Units", "Occupied", "Occupancy", "Monthly Revenue"], propertyStats)}
       </div>
 
       <div class="panel mt16">
@@ -1329,11 +1382,11 @@
         <div class="grid2">
           <div>
             <div class="muted small">Open Requests</div>
-            <div style="font-size:24px; font-weight:900;">${state.maintenance.filter(m => m.status === "Open").length}</div>
+            <div style="font-size:24px; font-weight:900;">${state.maintenance.filter(m => m.status === MAINTENANCE_STATUS.OPEN).length}</div>
           </div>
           <div>
             <div class="muted small">In Progress</div>
-            <div style="font-size:24px; font-weight:900;">${state.maintenance.filter(m => m.status === "In Progress").length}</div>
+            <div style="font-size:24px; font-weight:900;">${state.maintenance.filter(m => m.status === MAINTENANCE_STATUS.IN_PROGRESS).length}</div>
           </div>
           <div>
             <div class="muted small">Completed (All Time)</div>
@@ -1342,7 +1395,7 @@
           <div>
             <div class="muted small">Average Cost per Request</div>
             <div style="font-size:24px; font-weight:900;">
-              $${(state.maintenance_history || []).length > 0 
+              $${(state.maintenance_history || []).length > 0
                 ? fmt(Math.round(maintenanceCosts / (state.maintenance_history || []).length))
                 : 0}
             </div>
@@ -1351,7 +1404,7 @@
       </div>
 
       <div class="info-box mt16">
-        💡 Tip: Export features and advanced analytics coming soon to the full version!
+        Tip: Export features and advanced analytics coming soon to the full version!
       </div>
     `;
   }
@@ -1360,9 +1413,9 @@
     const state = window.Data.db();
     const rows = state.notifications
       .slice()
-      .sort((a,b) => (a.created < b.created ? 1 : -1))
+      .sort((a, b) => (a.created < b.created ? 1 : -1))
       .map(n => [
-        n.created, 
+        n.created,
         `<span class="pill pill-mid">${esc(n.type)}</span>`,
         esc(n.text)
       ]);
@@ -1371,15 +1424,14 @@
       <div class="panel">
         <div class="row between mb12">
           <div class="panel-h">Notifications & Alerts</div>
-          <button id="clearNotifications" class="btn btn-ghost">Clear All</button>
+          <button data-action="clear-notifications" class="btn btn-ghost">Clear All</button>
         </div>
-        ${rows.length > 0 ? tableHtml(["Date","Type","Message"], rows)
+        ${rows.length > 0 ? createTable(["Date", "Type", "Message"], rows)
           : `<div class="muted small">No notifications.</div>`}
       </div>
     `;
   }
 
-  // User menu pages
   function viewProfile() {
     const profile = window.Data.getProfile(email) || {};
     return `
@@ -1403,14 +1455,14 @@
         <div class="stack">
           <div>
             <div class="muted small mb8">Sidebar Behavior</div>
-            <button class="btn btn-ghost" onclick="localStorage.removeItem('sidebar_collapsed'); location.reload();">
+            <button class="btn btn-ghost" onclick="localStorage.removeItem('${STORAGE_KEYS.SIDEBAR_COLLAPSED}'); location.reload();">
               Reset Sidebar State
             </button>
           </div>
           <div>
             <div class="muted small mb8">Data Management</div>
             <div class="warning-box">
-              ⚠️ Warning: This will delete ALL your data. This action cannot be undone.
+              Warning: This will delete ALL your data. This action cannot be undone.
             </div>
             <button class="btn btn-ghost mt8" onclick="if(confirm('Delete ALL data? This cannot be undone!')) { localStorage.clear(); location.href='./index.html'; }">
               Clear All Data
@@ -1430,7 +1482,7 @@
           <div class="stack">
             <div>
               <div class="muted small">Name</div>
-              <div><b>${esc(me.name || "—")}</b></div>
+              <div><b>${esc(me.name || "\u2014")}</b></div>
             </div>
             <div>
               <div class="muted small">Email</div>
@@ -1438,7 +1490,7 @@
             </div>
             <div>
               <div class="muted small">Role</div>
-              <div><b>${roleLabel(role)}</b></div>
+              <div><b>${getRoleLabel(role)}</b></div>
             </div>
             <div>
               <div class="muted small">Company</div>
@@ -1480,110 +1532,14 @@
         <div class="panel-h">Coming Soon</div>
         <div class="muted small">Future integrations and features:</div>
         <div class="stack mt12">
-          <div>• Stripe/Plaid integration for automated rent collection</div>
-          <div>• QuickBooks sync for accounting</div>
-          <div>• Email/SMS notifications for tenants</div>
-          <div>• Document storage and e-signatures</div>
-          <div>• Mobile app for iOS and Android</div>
-          <div>• Tenant portal for payment and maintenance requests</div>
+          <div>\u2022 Stripe/Plaid integration for automated rent collection</div>
+          <div>\u2022 QuickBooks sync for accounting</div>
+          <div>\u2022 Email/SMS notifications for tenants</div>
+          <div>\u2022 Document storage and e-signatures</div>
+          <div>\u2022 Mobile app for iOS and Android</div>
+          <div>\u2022 Tenant portal for payment and maintenance requests</div>
         </div>
       </div>
     `;
-  }
-
-  // Update routes to include user menu pages
-  const originalGetRoutesForRole = getRoutesForRole;
-  getRoutesForRole = function(role) {
-    const baseRoutes = originalGetRoutesForRole(role);
-    return [
-      ...baseRoutes,
-      { key: "profile", title: "My Profile", subtitle: "Manage your profile", render: viewProfile },
-      { key: "settings", title: "My Settings", subtitle: "Application settings", render: viewSettings },
-      { key: "account", title: "My Account", subtitle: "Account information", render: viewAccount }
-    ];
-  };
-
-  // Wire profile form
-  if (parseHash().key === "profile") {
-    setTimeout(() => {
-      const form = document.getElementById("profileForm");
-      form?.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const name = form.name.value.trim();
-        const phone = form.phone.value.trim();
-        const company = form.company.value.trim();
-        const portfolioName = form.portfolioName.value.trim();
-
-        if (!phone) return alert("Phone is required.");
-
-        window.Data.setProfile(email, {
-          completed: true,
-          phone,
-          company,
-          portfolioName,
-          role: role
-        });
-
-        alert("Profile updated successfully!");
-        window.location.hash = "#dashboard";
-      });
-    }, 100);
-  }
-
-  // ----- HELPER FUNCTIONS -----
-  function roleLabel(r) {
-    if (r === "property_manager") return "Property Manager";
-    if (r === "landlord") return "Landlord / Owner";
-    return "Tenant";
-  }
-
-  function unitLabel(unit, state) {
-    if (!unit) return "—";
-    const prop = state.properties.find(p => p.id === unit.propertyId);
-    return `${prop?.name || "Property"} • ${unit.label}`;
-  }
-
-  function pillStatus(s) {
-    const cls = s === "Paid" || s === "Occupied" || s === "Complete"
-      ? "pill pill-ok"
-      : (s === "Unpaid" || s === "Vacant" ? "pill pill-warn" : "pill pill-mid");
-    return `<span class="${cls}">${esc(String(s))}</span>`;
-  }
-
-  function tableHtml(headers, rows) {
-    if (!rows || rows.length === 0) {
-      return `<div class="muted small">No data available.</div>`;
-    }
-    
-    return `
-      <div class="tablewrap">
-        <table>
-          <thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead>
-          <tbody>
-            ${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  function fmt(n) {
-    return Number(n || 0).toLocaleString("en-US");
-  }
-
-  function today() {
-    const d = new Date();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${d.getFullYear()}-${mm}-${dd}`;
-  }
-
-  function esc(str) {
-    return String(str ?? "")
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;")
-      .replaceAll("'","&#039;");
   }
 })();
