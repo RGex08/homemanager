@@ -58,18 +58,32 @@
 
   // Sidebar toggle functionality
   const sidebarToggle = document.getElementById("sidebarToggle");
+  const sidebarCloseBtn = document.getElementById("sidebarCloseBtn");
   const appEl = document.querySelector(".app");
+  const mobileQuery = window.matchMedia("(max-width: 980px)");
   let sidebarCollapsed = localStorage.getItem(STORAGE_KEYS.SIDEBAR_COLLAPSED) === "true";
 
-  if (sidebarCollapsed) {
-    appEl.classList.add("sidebar-collapsed");
+  if (mobileQuery.matches && localStorage.getItem(STORAGE_KEYS.SIDEBAR_COLLAPSED) === null) {
+    sidebarCollapsed = true;
   }
 
+  setSidebarCollapsed(sidebarCollapsed);
+
   sidebarToggle.addEventListener("click", () => {
-    sidebarCollapsed = !sidebarCollapsed;
-    appEl.classList.toggle("sidebar-collapsed");
-    localStorage.setItem(STORAGE_KEYS.SIDEBAR_COLLAPSED, sidebarCollapsed);
+    setSidebarCollapsed(!sidebarCollapsed);
   });
+
+  if (sidebarCloseBtn) {
+    sidebarCloseBtn.addEventListener("click", () => {
+      setSidebarCollapsed(true);
+    });
+  }
+
+  function setSidebarCollapsed(nextState) {
+    sidebarCollapsed = Boolean(nextState);
+    appEl.classList.toggle("sidebar-collapsed", sidebarCollapsed);
+    localStorage.setItem(STORAGE_KEYS.SIDEBAR_COLLAPSED, String(sidebarCollapsed));
+  }
 
   // User menu functionality
   const userMenuBtn = document.getElementById("userMenuBtn");
@@ -230,6 +244,14 @@
         <span class="dot"></span><span>${i.title}</span>
       </a>
     `).join("");
+
+    navEl.querySelectorAll("a[data-key]").forEach(link => {
+      link.addEventListener("click", () => {
+        if (mobileQuery.matches) {
+          setSidebarCollapsed(true);
+        }
+      });
+    });
   }
 
   function renderKpis() {
@@ -456,8 +478,7 @@
 
       case "reset-sidebar": {
         localStorage.removeItem(STORAGE_KEYS.SIDEBAR_COLLAPSED);
-        sidebarCollapsed = false;
-        appEl.classList.remove("sidebar-collapsed");
+        setSidebarCollapsed(false);
         alert("Sidebar state reset.");
         break;
       }
