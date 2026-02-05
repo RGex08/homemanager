@@ -24,7 +24,16 @@
 
   // Current user info
   const me = window.Auth.me();
-  const role = me.role;
+  const roleOptions = Object.freeze([
+    { value: "property_manager", label: "Property Manager" },
+    { value: "home_owner", label: "Home Owner" },
+    { value: "tenant", label: "Tenant" }
+  ]);
+  const roleLabelByValue = Object.freeze(Object.fromEntries(roleOptions.map(option => [option.value, option.label])));
+
+  let selectedProfile = (me.role === ROLES.LANDLORD ? "home_owner" : me.role) || "property_manager";
+  if (!roleLabelByValue[selectedProfile]) selectedProfile = "property_manager";
+
 
   // DOM elements
   const navEl = document.getElementById("nav");
@@ -32,6 +41,9 @@
   const whoEl = document.getElementById("who");
   const whoEmailEl = document.getElementById("whoEmail");
   const roleBadge = document.getElementById("roleBadge");
+  const profileSwitcher = document.getElementById("profileSwitcher");
+  const profileSwitcherBtn = document.getElementById("profileSwitcherBtn");
+  const profileSwitcherDropdown = document.getElementById("profileSwitcherDropdown");
   const pageTitle = document.getElementById("pageTitle");
   const pageSubtitle = document.getElementById("pageSubtitle");
   const kpiPills = document.getElementById("kpiPills");
@@ -39,9 +51,9 @@
   const globalSearchInput = document.getElementById("globalSearchInput");
 
   // Initialize UI
-  whoEl.textContent = "My Profile";
+  whoEl.textContent = me.name || me.email;
   whoEmailEl.textContent = me.email;
-  roleBadge.textContent = getRoleLabel(role);
+  roleBadge.textContent = roleLabelByValue[selectedProfile];
 
   // Sidebar toggle functionality
   const sidebarToggle = document.getElementById("sidebarToggle");
@@ -72,10 +84,42 @@
   document.addEventListener("click", () => {
     userMenu.classList.remove("open");
     userMenuDropdown.classList.remove("show");
+    profileSwitcher.classList.remove("open");
+    profileSwitcherDropdown.classList.remove("show");
   });
 
   userMenuDropdown.addEventListener("click", (e) => {
     e.stopPropagation();
+  });
+
+  profileSwitcherBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    profileSwitcher.classList.toggle("open");
+    profileSwitcherDropdown.classList.toggle("show");
+  });
+
+  profileSwitcherDropdown.addEventListener("click", (e) => {
+    e.stopPropagation();
+
+    const option = e.target.closest("[data-profile]");
+    if (!option) return;
+
+    selectedProfile = option.dataset.profile;
+    roleBadge.textContent = roleLabelByValue[selectedProfile] || roleLabelByValue.property_manager;
+    routes = getRoutesForRole();
+
+    const { key } = parseHash();
+    const availableRouteKeys = new Set([...routes, ...utilityRoutes].map(route => route.key));
+    if (!availableRouteKeys.has(key)) {
+      setHash(routes[0].key);
+      return;
+    }
+
+    renderNav(routes);
+    render();
+
+    profileSwitcher.classList.remove("open");
+    profileSwitcherDropdown.classList.remove("show");
   });
 
   // Logout handler
@@ -96,7 +140,8 @@
   });
 
   // Routes configuration
-  const routes = getRoutesForRole(role);
+  let routes = getRoutesForRole();
+  const utilityRoutes = getUtilityRoutes();
 
   // View-local UI state for quick-add forms (not persisted in URL)
   let quickAddUnitPropertyId = "";
@@ -154,7 +199,7 @@
       return;
     }
 
-    const match = routes.find(r => r.key === key) || routes[0];
+    const match = [...routes, ...utilityRoutes].find(r => r.key === key) || routes[0];
 
     renderKpis();
     pageTitle.textContent = match.title;
@@ -204,19 +249,33 @@
     `;
   }
 
-  function getRoutesForRole(r) {
+  function getRoutesForRole() {
     const baseRoutes = [
       { key: "dashboard", title: "Dashboard", subtitle: "Portfolio overview", render: viewDashboard },
       { key: "properties", title: "Properties", subtitle: "Manage properties and units", render: viewProperties },
       { key: "maintenance", title: "Maintenance", subtitle: "Track and schedule maintenance", render: viewMaintenance },
       { key: "vendors", title: "Vendors", subtitle: "Preferred vendors and contacts", render: viewVendors },
       { key: "reports", title: "Reports", subtitle: "Financial and operational reports", render: viewReports },
-      { key: "notifications", title: "Notifications", subtitle: "Alerts and reminders", render: viewNotifications },
+      { key: "notifications", title: "Notifications", subtitle: "Alerts and reminders", render: viewNotifications }
+    ];
+
+    if (selectedProfile === "tenant") {
+      return baseRoutes.filter(route => ["dashboard", "maintenance", "notifications"].includes(route.key));
+    }
+
+    if (selectedProfile === "home_owner") {
+      return baseRoutes.filter(route => route.key !== "vendors");
+    }
+
+    return baseRoutes;
+  }
+
+  function getUtilityRoutes() {
+    return [
       { key: "profile", title: "My Profile", subtitle: "Manage your profile", render: viewProfile },
       { key: "settings", title: "My Settings", subtitle: "Application settings", render: viewSettings },
       { key: "account", title: "My Account", subtitle: "Account information", render: viewAccount }
     ];
-    return baseRoutes;
   }
 
   // ===== EVENT DELEGATION HANDLERS =====
@@ -658,7 +717,7 @@
           phone,
           company,
           portfolioName,
-          role: role
+          role: me.role
         });
 
         alert("Profile updated successfully!");
@@ -1634,7 +1693,7 @@
             </div>
             <div>
               <div class="muted small">Role</div>
-              <div><b>${getRoleLabel(role)}</b></div>
+              <div><b>${getRoleLabel(me.role)}</b></div>
             </div>
             <div>
               <div class="muted small">Company</div>

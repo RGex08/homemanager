@@ -14,7 +14,17 @@
           <div class="logo">HM</div>
           <div>
             <div class="brand-name">HomeManager</div>
-            <div id="roleBadge" class="badge">Loading…</div>
+            <div class="profile-switcher" id="profileSwitcher">
+              <button id="profileSwitcherBtn" class="badge profile-switcher-btn" type="button">
+                <span id="roleBadge">Loading…</span>
+                <span class="dropdown-arrow">▼</span>
+              </button>
+              <div id="profileSwitcherDropdown" class="user-dropdown profile-switcher-dropdown">
+                <button class="dropdown-item" type="button" data-profile="property_manager">Property Manager</button>
+                <button class="dropdown-item" type="button" data-profile="home_owner">Home Owner</button>
+                <button class="dropdown-item" type="button" data-profile="tenant">Tenant</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -45,12 +55,13 @@
           <div id="kpiPills" class="kpis"></div>
           <div class="user-menu">
             <button id="userMenuBtn" class="pill user-pill" type="button">
-              <span id="who">My Profile</span>
+              <span id="who">Loading…</span>
               <span class="dropdown-arrow">▼</span>
             </button>
             <div id="userMenuDropdown" class="user-dropdown">
               <div id="whoEmail" class="dropdown-email muted small">—</div>
               <div class="dropdown-divider"></div>
+              <a href="#profile" class="dropdown-item">👤 My Profile</a>
               <a href="#settings" class="dropdown-item">⚙️ My Settings</a>
               <a href="#account" class="dropdown-item">🔐 My Account</a>
               <div class="dropdown-divider"></div>

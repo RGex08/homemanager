@@ -290,6 +290,35 @@ textarea:focus {
   margin-top: 4px;
 }
 
+
+.profile-switcher {
+  position: relative;
+  margin-top: 4px;
+}
+
+.profile-switcher-btn {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.profile-switcher-btn:hover {
+  border-color: rgba(124, 92, 255, 0.55);
+  background: rgba(124, 92, 255, 0.12);
+}
+
+.profile-switcher-dropdown {
+  left: 0;
+  right: auto;
+  min-width: 180px;
+}
+
+.profile-switcher.open .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
 /* ===== Navigation ===== */
 .nav {
   display: grid;
