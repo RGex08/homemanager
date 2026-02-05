@@ -24,6 +24,7 @@
 
   // Current user info
   const me = window.Auth.me();
+  const email = me.email;
   const roleOptions = Object.freeze([
     { value: "property_manager", label: "Property Manager" },
     { value: "home_owner", label: "Home Owner" },
@@ -452,6 +453,58 @@
         render();
         break;
       }
+
+      case "reset-sidebar": {
+        localStorage.removeItem(STORAGE_KEYS.SIDEBAR_COLLAPSED);
+        sidebarCollapsed = false;
+        appEl.classList.remove("sidebar-collapsed");
+        alert("Sidebar state reset.");
+        break;
+      }
+
+      case "export-data": {
+        const data = JSON.stringify(window.Data.db(), null, 2);
+        const blob = new Blob([data], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `homemanager-backup-${today()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        break;
+      }
+
+      case "reset-demo-data": {
+        if (!confirm("Reset all data to the default demo data? Your current data will be lost.")) return;
+        localStorage.removeItem(STORAGE_KEYS.DATA);
+        window.Data.bootstrap();
+        render();
+        alert("Data reset to demo defaults.");
+        break;
+      }
+
+      case "clear-all-data": {
+        if (!confirm("Delete ALL data? This cannot be undone!")) return;
+        if (!confirm("Are you absolutely sure? All properties, units, tenants, and settings will be permanently deleted.")) return;
+        localStorage.clear();
+        window.location.href = "./index.html";
+        break;
+      }
+
+      case "deactivate-account": {
+        alert("Account deactivation is not available in the prototype. In a production app, this would temporarily disable your account.");
+        break;
+      }
+
+      case "delete-account": {
+        if (!confirm("Permanently delete your account? This cannot be undone.")) return;
+        if (!confirm("This will erase ALL data including properties, tenants, leases, and your login. Continue?")) return;
+        localStorage.clear();
+        window.location.href = "./index.html";
+        break;
+      }
     }
   }
 
@@ -704,24 +757,130 @@
       case "profileForm": {
         const name = form.name.value.trim();
         const phone = form.phone.value.trim();
+        const phone2 = form.phone2.value.trim();
+        const dob = form.dob.value;
+        const address = form.address.value.trim();
+        const address2 = form.address2.value.trim();
+        const city = form.city.value.trim();
+        const state = form.state.value.trim();
+        const zip = form.zip.value.trim();
         const company = form.company.value.trim();
+        const jobTitle = form.jobTitle.value.trim();
         const portfolioName = form.portfolioName.value.trim();
+        const licenseNumber = form.licenseNumber.value.trim();
+        const bio = form.bio.value.trim();
 
         if (!phone) {
           alert("Phone is required.");
           return;
         }
 
+        const existing = window.Data.getProfile(email) || {};
         window.Data.setProfile(email, {
+          ...existing,
           completed: true,
           phone,
+          phone2,
+          dob,
+          address,
+          address2,
+          city,
+          state,
+          zip,
           company,
+          jobTitle,
           portfolioName,
+          licenseNumber,
+          bio,
           role: me.role
         });
 
         alert("Profile updated successfully!");
-        setHash("dashboard");
+        render();
+        break;
+      }
+
+      case "emergencyContactForm": {
+        const emergencyName = form.emergencyName.value.trim();
+        const emergencyRelation = form.emergencyRelation.value.trim();
+        const emergencyPhone = form.emergencyPhone.value.trim();
+        const emergencyEmail = form.emergencyEmail.value.trim();
+
+        const existing = window.Data.getProfile(email) || {};
+        window.Data.setProfile(email, {
+          ...existing,
+          emergencyName,
+          emergencyRelation,
+          emergencyPhone,
+          emergencyEmail
+        });
+
+        alert("Emergency contact saved!");
+        render();
+        break;
+      }
+
+      case "settingsForm": {
+        const emailNotifications = form.emailNotifications.checked;
+        const maintenanceAlerts = form.maintenanceAlerts.checked;
+        const paymentReminders = form.paymentReminders.checked;
+        const leaseAlerts = form.leaseAlerts.checked;
+        const currency = form.currency.value;
+        const dateFormat = form.dateFormat.value;
+        const timezone = form.timezone.value;
+        const pageSize = form.pageSize.value;
+        const defaultView = form.defaultView.value;
+
+        const existing = window.Data.getProfile(email) || {};
+        window.Data.setProfile(email, {
+          ...existing,
+          settings: {
+            emailNotifications,
+            maintenanceAlerts,
+            paymentReminders,
+            leaseAlerts,
+            currency,
+            dateFormat,
+            timezone,
+            pageSize,
+            defaultView
+          }
+        });
+
+        alert("Settings saved!");
+        render();
+        break;
+      }
+
+      case "changePasswordForm": {
+        const currentPassword = form.currentPassword.value;
+        const newPassword = form.newPassword.value;
+        const confirmPassword = form.confirmPassword.value;
+
+        if (newPassword.length < 6) {
+          alert("New password must be at least 6 characters.");
+          return;
+        }
+        if (newPassword !== confirmPassword) {
+          alert("New passwords do not match.");
+          return;
+        }
+
+        // Verify current password by attempting login
+        const loginResult = window.Auth.loginWithPassword(email, currentPassword);
+        if (!loginResult.ok) {
+          alert("Current password is incorrect.");
+          return;
+        }
+
+        const updateResult = window.Auth.updatePassword(email, newPassword);
+        if (!updateResult.ok) {
+          alert(updateResult.message || "Could not update password.");
+          return;
+        }
+
+        alert("Password updated successfully!");
+        form.reset();
         break;
       }
     }
@@ -1638,38 +1797,192 @@
   function viewProfile() {
     const profile = window.Data.getProfile(email) || {};
     return `
-      <div class="panel">
-        <div class="panel-h">My Profile</div>
-        <form id="profileForm" class="form compact mt12">
-          <label>Full Name <input name="name" value="${esc(me.name || "")}" required></label>
-          <label>Phone <input name="phone" type="tel" placeholder="555-123-4567" value="${esc(profile.phone || "")}" required></label>
-          <label>Company (optional) <input name="company" placeholder="Your Property Management Company" value="${esc(profile.company || "")}"></label>
-          <label>Portfolio name (optional) <input name="portfolioName" placeholder="e.g., DC Metro Portfolio" value="${esc(profile.portfolioName || "")}"></label>
-          <button class="btn" type="submit">Save Profile</button>
-        </form>
+      <div class="grid2">
+        <div class="panel grid-span-2">
+          <div class="panel-h">My Profile</div>
+          <div class="muted small mb12">Manage your personal and professional information.</div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h">Personal Information</div>
+          <form id="profileForm" class="form compact mt12">
+            <label>Full Name <input name="name" value="${esc(me.name || "")}" required></label>
+            <div class="grid2">
+              <label>Phone <input name="phone" type="tel" placeholder="555-123-4567" value="${esc(profile.phone || "")}" required></label>
+              <label>Secondary Phone <input name="phone2" type="tel" placeholder="555-987-6543" value="${esc(profile.phone2 || "")}"></label>
+            </div>
+            <label>Date of Birth <input name="dob" type="date" value="${esc(profile.dob || "")}"></label>
+
+            <div class="panel-h mt12">Address</div>
+            <label>Street Address <input name="address" placeholder="123 Main St" value="${esc(profile.address || "")}"></label>
+            <label>Address Line 2 <input name="address2" placeholder="Apt, Suite, Unit, etc." value="${esc(profile.address2 || "")}"></label>
+            <div class="grid3">
+              <label>City <input name="city" placeholder="Washington" value="${esc(profile.city || "")}"></label>
+              <label>State / Province <input name="state" placeholder="DC" value="${esc(profile.state || "")}"></label>
+              <label>ZIP / Postal Code <input name="zip" placeholder="20001" value="${esc(profile.zip || "")}"></label>
+            </div>
+
+            <div class="panel-h mt12">Professional Details</div>
+            <label>Company <input name="company" placeholder="Your Property Management Company" value="${esc(profile.company || "")}"></label>
+            <label>Job Title <input name="jobTitle" placeholder="e.g., Property Manager, Owner" value="${esc(profile.jobTitle || "")}"></label>
+            <label>Portfolio Name <input name="portfolioName" placeholder="e.g., DC Metro Portfolio" value="${esc(profile.portfolioName || "")}"></label>
+            <label>License / Certification Number <input name="licenseNumber" placeholder="e.g., PM-12345" value="${esc(profile.licenseNumber || "")}"></label>
+
+            <div class="panel-h mt12">Bio</div>
+            <label>About Me <textarea name="bio" placeholder="A short bio or description...">${esc(profile.bio || "")}</textarea></label>
+
+            <button class="btn mt12" type="submit">Save Profile</button>
+          </form>
+        </div>
+
+        <div class="stack">
+          <div class="panel">
+            <div class="panel-h">Profile Preview</div>
+            <div class="profile-preview">
+              <div class="avatar-placeholder">${esc((me.name || "U").charAt(0).toUpperCase())}</div>
+              <div class="profile-preview-name">${esc(me.name || "—")}</div>
+              <div class="muted small">${esc(me.email)}</div>
+              <div class="muted small">${getRoleLabel(me.role)}</div>
+              ${profile.company ? `<div class="muted small mt8">${esc(profile.company)}</div>` : ""}
+              ${profile.jobTitle ? `<div class="muted small">${esc(profile.jobTitle)}</div>` : ""}
+              ${profile.phone ? `<div class="muted small mt8">${esc(profile.phone)}</div>` : ""}
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h">Emergency Contact</div>
+            <form id="emergencyContactForm" class="form compact mt12">
+              <label>Contact Name <input name="emergencyName" placeholder="Full name" value="${esc(profile.emergencyName || "")}"></label>
+              <label>Relationship <input name="emergencyRelation" placeholder="e.g., Spouse, Sibling" value="${esc(profile.emergencyRelation || "")}"></label>
+              <label>Phone <input name="emergencyPhone" type="tel" placeholder="555-000-0000" value="${esc(profile.emergencyPhone || "")}"></label>
+              <label>Email <input name="emergencyEmail" type="email" placeholder="contact@email.com" value="${esc(profile.emergencyEmail || "")}"></label>
+              <button class="btn" type="submit">Save Emergency Contact</button>
+            </form>
+          </div>
+        </div>
       </div>
     `;
   }
 
   function viewSettings() {
+    const profile = window.Data.getProfile(email) || {};
+    const settings = profile.settings || {};
+
     return `
-      <div class="panel">
-        <div class="panel-h">My Settings</div>
-        <div class="stack">
-          <div>
-            <div class="muted small mb8">Sidebar Behavior</div>
-            <button class="btn btn-ghost" onclick="localStorage.removeItem('${STORAGE_KEYS.SIDEBAR_COLLAPSED}'); location.reload();">
-              Reset Sidebar State
-            </button>
-          </div>
-          <div>
-            <div class="muted small mb8">Data Management</div>
-            <div class="warning-box">
-              Warning: This will delete ALL your data. This action cannot be undone.
+      <div class="grid2">
+        <div class="panel grid-span-2">
+          <div class="panel-h">My Settings</div>
+          <div class="muted small mb12">Customize your HomeManager experience.</div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h">Notification Preferences</div>
+          <form id="settingsForm" class="form compact mt12">
+            <div class="setting-group">
+              <label class="setting-row">
+                <span class="setting-label">
+                  <span class="setting-title">Email Notifications</span>
+                  <span class="muted small">Receive email alerts for important events</span>
+                </span>
+                <input type="checkbox" name="emailNotifications" class="toggle-checkbox" ${settings.emailNotifications !== false ? "checked" : ""}>
+              </label>
+              <label class="setting-row">
+                <span class="setting-label">
+                  <span class="setting-title">Maintenance Alerts</span>
+                  <span class="muted small">Get notified when maintenance requests are created or updated</span>
+                </span>
+                <input type="checkbox" name="maintenanceAlerts" class="toggle-checkbox" ${settings.maintenanceAlerts !== false ? "checked" : ""}>
+              </label>
+              <label class="setting-row">
+                <span class="setting-label">
+                  <span class="setting-title">Payment Reminders</span>
+                  <span class="muted small">Receive reminders for upcoming and overdue payments</span>
+                </span>
+                <input type="checkbox" name="paymentReminders" class="toggle-checkbox" ${settings.paymentReminders !== false ? "checked" : ""}>
+              </label>
+              <label class="setting-row">
+                <span class="setting-label">
+                  <span class="setting-title">Lease Expiration Warnings</span>
+                  <span class="muted small">Get alerts before leases expire</span>
+                </span>
+                <input type="checkbox" name="leaseAlerts" class="toggle-checkbox" ${settings.leaseAlerts !== false ? "checked" : ""}>
+              </label>
             </div>
-            <button class="btn btn-ghost mt8" onclick="if(confirm('Delete ALL data? This cannot be undone!')) { localStorage.clear(); location.href='./index.html'; }">
-              Clear All Data
-            </button>
+
+            <div class="panel-h mt12">Display Preferences</div>
+            <label>Currency Format
+              <select name="currency">
+                <option value="USD" ${settings.currency === "USD" || !settings.currency ? "selected" : ""}>USD ($)</option>
+                <option value="EUR" ${settings.currency === "EUR" ? "selected" : ""}>EUR (\u20AC)</option>
+                <option value="GBP" ${settings.currency === "GBP" ? "selected" : ""}>GBP (\u00A3)</option>
+                <option value="CAD" ${settings.currency === "CAD" ? "selected" : ""}>CAD (C$)</option>
+                <option value="AUD" ${settings.currency === "AUD" ? "selected" : ""}>AUD (A$)</option>
+              </select>
+            </label>
+            <label>Date Format
+              <select name="dateFormat">
+                <option value="MM/DD/YYYY" ${settings.dateFormat === "MM/DD/YYYY" || !settings.dateFormat ? "selected" : ""}>MM/DD/YYYY</option>
+                <option value="DD/MM/YYYY" ${settings.dateFormat === "DD/MM/YYYY" ? "selected" : ""}>DD/MM/YYYY</option>
+                <option value="YYYY-MM-DD" ${settings.dateFormat === "YYYY-MM-DD" ? "selected" : ""}>YYYY-MM-DD</option>
+              </select>
+            </label>
+            <label>Timezone
+              <select name="timezone">
+                <option value="America/New_York" ${settings.timezone === "America/New_York" || !settings.timezone ? "selected" : ""}>Eastern Time (ET)</option>
+                <option value="America/Chicago" ${settings.timezone === "America/Chicago" ? "selected" : ""}>Central Time (CT)</option>
+                <option value="America/Denver" ${settings.timezone === "America/Denver" ? "selected" : ""}>Mountain Time (MT)</option>
+                <option value="America/Los_Angeles" ${settings.timezone === "America/Los_Angeles" ? "selected" : ""}>Pacific Time (PT)</option>
+                <option value="America/Anchorage" ${settings.timezone === "America/Anchorage" ? "selected" : ""}>Alaska Time (AKT)</option>
+                <option value="Pacific/Honolulu" ${settings.timezone === "Pacific/Honolulu" ? "selected" : ""}>Hawaii Time (HT)</option>
+                <option value="Europe/London" ${settings.timezone === "Europe/London" ? "selected" : ""}>GMT / London</option>
+                <option value="Europe/Paris" ${settings.timezone === "Europe/Paris" ? "selected" : ""}>CET / Paris</option>
+              </select>
+            </label>
+            <label>Items Per Page
+              <select name="pageSize">
+                <option value="10" ${settings.pageSize === "10" || !settings.pageSize ? "selected" : ""}>10</option>
+                <option value="25" ${settings.pageSize === "25" ? "selected" : ""}>25</option>
+                <option value="50" ${settings.pageSize === "50" ? "selected" : ""}>50</option>
+                <option value="100" ${settings.pageSize === "100" ? "selected" : ""}>100</option>
+              </select>
+            </label>
+
+            <div class="panel-h mt12">Default View</div>
+            <label>Dashboard Default View
+              <select name="defaultView">
+                <option value="dashboard" ${settings.defaultView === "dashboard" || !settings.defaultView ? "selected" : ""}>Dashboard</option>
+                <option value="properties" ${settings.defaultView === "properties" ? "selected" : ""}>Properties</option>
+                <option value="maintenance" ${settings.defaultView === "maintenance" ? "selected" : ""}>Maintenance</option>
+                <option value="reports" ${settings.defaultView === "reports" ? "selected" : ""}>Reports</option>
+              </select>
+            </label>
+
+            <button class="btn mt12" type="submit">Save Settings</button>
+          </form>
+        </div>
+
+        <div class="stack">
+          <div class="panel">
+            <div class="panel-h">Sidebar Behavior</div>
+            <div class="muted small mb12">Control the sidebar display on application load.</div>
+            <button class="btn btn-ghost" data-action="reset-sidebar">Reset Sidebar State</button>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h">Data Export</div>
+            <div class="muted small mb12">Download a backup of your data as a JSON file.</div>
+            <button class="btn btn-ghost" data-action="export-data">Export All Data</button>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h">Data Management</div>
+            <div class="warning-box mb12">
+              Warning: These actions are destructive and cannot be undone.
+            </div>
+            <div class="stack">
+              <button class="btn btn-ghost" data-action="reset-demo-data">Reset to Demo Data</button>
+              <button class="btn btn-ghost btn-danger" data-action="clear-all-data">Clear All Data</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1678,46 +1991,145 @@
 
   function viewAccount() {
     const profile = window.Data.getProfile(email) || {};
+    const state = window.Data.db();
+
+    // Storage usage estimate
+    const storageUsed = new Blob([JSON.stringify(localStorage)]).size;
+    const storageFormatted = storageUsed > 1024 * 1024
+      ? (storageUsed / (1024 * 1024)).toFixed(2) + " MB"
+      : (storageUsed / 1024).toFixed(1) + " KB";
+
+    // Data stats
+    const totalProperties = state.properties.length;
+    const totalUnits = state.units.length;
+    const totalTenants = state.tenants.length;
+    const totalLeases = state.leases.length;
+    const totalMaintenance = state.maintenance.length + (state.maintenance_history || []).length;
+    const totalVendors = state.vendors.length;
+
     return `
       <div class="grid2">
+        <div class="panel grid-span-2">
+          <div class="panel-h">My Account</div>
+          <div class="muted small mb12">Manage your account details, security, and preferences.</div>
+        </div>
+
         <div class="panel">
           <div class="panel-h">Account Information</div>
           <div class="stack">
-            <div>
-              <div class="muted small">Name</div>
-              <div><b>${esc(me.name || "\u2014")}</b></div>
+            <div class="account-info-row">
+              <div class="avatar-placeholder avatar-lg">${esc((me.name || "U").charAt(0).toUpperCase())}</div>
+              <div>
+                <div class="profile-preview-name">${esc(me.name || "\u2014")}</div>
+                <div class="muted small">${esc(me.email)}</div>
+                <div class="muted small">${getRoleLabel(me.role)}</div>
+              </div>
             </div>
-            <div>
-              <div class="muted small">Email</div>
-              <div><b>${esc(me.email)}</b></div>
-            </div>
-            <div>
-              <div class="muted small">Role</div>
-              <div><b>${getRoleLabel(me.role)}</b></div>
-            </div>
-            <div>
-              <div class="muted small">Company</div>
-              <div><b>${esc(profile.company || "Not set")}</b></div>
-            </div>
-            <div>
-              <div class="muted small">Phone</div>
-              <div><b>${esc(profile.phone || "Not set")}</b></div>
-            </div>
-            <div>
-              <div class="muted small">Portfolio</div>
-              <div><b>${esc(profile.portfolioName || "Not set")}</b></div>
+            <div class="detail-grid">
+              <div>
+                <div class="muted small">Company</div>
+                <div><b>${esc(profile.company || "Not set")}</b></div>
+              </div>
+              <div>
+                <div class="muted small">Job Title</div>
+                <div><b>${esc(profile.jobTitle || "Not set")}</b></div>
+              </div>
+              <div>
+                <div class="muted small">Phone</div>
+                <div><b>${esc(profile.phone || "Not set")}</b></div>
+              </div>
+              <div>
+                <div class="muted small">Portfolio</div>
+                <div><b>${esc(profile.portfolioName || "Not set")}</b></div>
+              </div>
+              <div>
+                <div class="muted small">City</div>
+                <div><b>${esc(profile.city || "Not set")}</b></div>
+              </div>
+              <div>
+                <div class="muted small">State</div>
+                <div><b>${esc(profile.state || "Not set")}</b></div>
+              </div>
             </div>
           </div>
           <a href="#profile" class="btn btn-ghost mt12" style="display:inline-block;">Edit Profile</a>
         </div>
 
         <div class="panel">
+          <div class="panel-h">Security</div>
+          <div class="stack">
+            <div>
+              <div class="panel-h" style="font-size:14px;">Change Password</div>
+              <form id="changePasswordForm" class="form compact">
+                <label>Current Password <input name="currentPassword" type="password" placeholder="Enter current password" required></label>
+                <label>New Password <input name="newPassword" type="password" placeholder="Enter new password (min 6 chars)" required></label>
+                <label>Confirm New Password <input name="confirmPassword" type="password" placeholder="Confirm new password" required></label>
+                <button class="btn" type="submit">Update Password</button>
+              </form>
+            </div>
+            <div class="setting-group mt12">
+              <div class="setting-row">
+                <span class="setting-label">
+                  <span class="setting-title">Two-Factor Authentication</span>
+                  <span class="muted small">Add an extra layer of security to your account</span>
+                </span>
+                <span class="pill pill-mid">Coming Soon</span>
+              </div>
+              <div class="setting-row">
+                <span class="setting-label">
+                  <span class="setting-title">Login History</span>
+                  <span class="muted small">View recent sign-in activity</span>
+                </span>
+                <span class="pill pill-mid">Coming Soon</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid2 mt16">
+        <div class="panel">
+          <div class="panel-h">Data Overview</div>
+          <div class="muted small mb12">Summary of all records in your account.</div>
+          <div class="detail-grid">
+            <div>
+              <div class="muted small">Properties</div>
+              <div style="font-size:22px; font-weight:900;">${totalProperties}</div>
+            </div>
+            <div>
+              <div class="muted small">Units</div>
+              <div style="font-size:22px; font-weight:900;">${totalUnits}</div>
+            </div>
+            <div>
+              <div class="muted small">Tenants</div>
+              <div style="font-size:22px; font-weight:900;">${totalTenants}</div>
+            </div>
+            <div>
+              <div class="muted small">Leases</div>
+              <div style="font-size:22px; font-weight:900;">${totalLeases}</div>
+            </div>
+            <div>
+              <div class="muted small">Maintenance Records</div>
+              <div style="font-size:22px; font-weight:900;">${totalMaintenance}</div>
+            </div>
+            <div>
+              <div class="muted small">Vendors</div>
+              <div style="font-size:22px; font-weight:900;">${totalVendors}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
           <div class="panel-h">System Information</div>
-          <div class="muted small mb12">This is a prototype application. All data is stored locally in your browser.</div>
+          <div class="muted small mb12">Technical details about this application.</div>
           <div class="stack">
             <div>
               <div class="muted small">Data Storage</div>
               <div><b>Browser localStorage</b></div>
+            </div>
+            <div>
+              <div class="muted small">Storage Used</div>
+              <div><b>${storageFormatted}</b></div>
             </div>
             <div>
               <div class="muted small">Version</div>
@@ -1727,20 +2139,67 @@
               <div class="muted small">Last Updated</div>
               <div><b>February 2026</b></div>
             </div>
+            <div>
+              <div class="muted small">Browser</div>
+              <div><b>${esc(navigator.userAgent.split(" ").pop() || "Unknown")}</b></div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="panel mt16">
-        <div class="panel-h">Coming Soon</div>
-        <div class="muted small">Future integrations and features:</div>
-        <div class="stack mt12">
-          <div>\u2022 Stripe/Plaid integration for automated rent collection</div>
-          <div>\u2022 QuickBooks sync for accounting</div>
-          <div>\u2022 Email/SMS notifications for tenants</div>
-          <div>\u2022 Document storage and e-signatures</div>
-          <div>\u2022 Mobile app for iOS and Android</div>
-          <div>\u2022 Tenant portal for payment and maintenance requests</div>
+      <div class="grid2 mt16">
+        <div class="panel">
+          <div class="panel-h">Connected Services</div>
+          <div class="muted small mb12">Integrations and third-party connections.</div>
+          <div class="setting-group">
+            <div class="setting-row">
+              <span class="setting-label">
+                <span class="setting-title">Stripe / Payment Processing</span>
+                <span class="muted small">Automate rent collection and payment tracking</span>
+              </span>
+              <span class="pill pill-mid">Coming Soon</span>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">
+                <span class="setting-title">QuickBooks / Accounting</span>
+                <span class="muted small">Sync financial data with your accounting software</span>
+              </span>
+              <span class="pill pill-mid">Coming Soon</span>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">
+                <span class="setting-title">Email / SMS Provider</span>
+                <span class="muted small">Send automated notifications to tenants</span>
+              </span>
+              <span class="pill pill-mid">Coming Soon</span>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">
+                <span class="setting-title">Document Storage</span>
+                <span class="muted small">Store leases, contracts, and receipts</span>
+              </span>
+              <span class="pill pill-mid">Coming Soon</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h">Danger Zone</div>
+          <div class="warning-box mb12">
+            These actions are permanent and cannot be undone. Proceed with caution.
+          </div>
+          <div class="stack">
+            <div>
+              <div class="muted small mb8">Deactivate Account</div>
+              <div class="muted small mb8">Temporarily disable your account. You can reactivate by logging in again.</div>
+              <button class="btn btn-ghost" data-action="deactivate-account">Deactivate Account</button>
+            </div>
+            <div>
+              <div class="muted small mb8">Delete Account</div>
+              <div class="muted small mb8">Permanently delete your account and all associated data.</div>
+              <button class="btn btn-ghost btn-danger" data-action="delete-account">Delete Account</button>
+            </div>
+          </div>
         </div>
       </div>
     `;
