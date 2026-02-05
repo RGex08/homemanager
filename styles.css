@@ -1,20 +1,41 @@
 /**
- * HomeManager Styles
- * Modern dark theme with glassmorphism effects
+ * My Home Manager Styles
+ * Calm, trustworthy visual system with accessible light/dark themes
  */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap");
 
 /* ===== CSS Variables ===== */
 :root {
-  --bg: #0b1220;
-  --card: rgba(255, 255, 255, 0.06);
-  --border: rgba(255, 255, 255, 0.12);
-  --text: rgba(255, 255, 255, 0.92);
-  --muted: rgba(255, 255, 255, 0.65);
-  --accent: #7c5cff;
-  --accent2: #20d3ff;
-  --success: #4ade80;
-  --warning: #fbbf24;
-  --danger: #f87171;
+  --capybara-brown: #7A5C3E;
+  --sage-green: #7FA68A;
+  --warm-sand: #E8DDCF;
+  --soft-cream: #FAF8F4;
+  --charcoal: #2F2F2F;
+  --deep-slate: #3E4A46;
+
+  --bg: var(--soft-cream);
+  --card: #ffffff;
+  --border: #d9cec0;
+  --text: var(--charcoal);
+  --muted: #5f5b54;
+  --accent: var(--sage-green);
+  --accent2: var(--capybara-brown);
+  --success: #2f855a;
+  --warning: #9a6b1f;
+  --danger: #b6413d;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--deep-slate);
+    --card: #2f3936;
+    --border: #52615b;
+    --text: #f5f0e9;
+    --muted: #d1c5b8;
+    --accent: #9bbfa5;
+    --accent2: #b29273;
+  }
 }
 
 /* ===== Reset & Base ===== */
@@ -24,11 +45,8 @@
 
 body {
   margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  background:
-    radial-gradient(1000px 500px at 10% 10%, rgba(124, 92, 255, 0.35), transparent 60%),
-    radial-gradient(900px 600px at 90% 20%, rgba(32, 211, 255, 0.25), transparent 55%),
-    var(--bg);
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--bg);
   color: var(--text);
   line-height: 1.5;
 }
@@ -85,15 +103,57 @@ body {
   margin-bottom: 12px;
 }
 
-.logo {
+.brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.logo-mark {
   width: 40px;
   height: 40px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  font-weight: 900;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  color: #0b1220;
+  flex-shrink: 0;
+}
+
+.logo-house {
+  fill: var(--warm-sand);
+  stroke: var(--capybara-brown);
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.logo-capy {
+  fill: var(--capybara-brown);
+}
+
+.logo-eye {
+  fill: var(--soft-cream);
+}
+
+.logo-ear {
+  stroke: var(--soft-cream);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.logo-wordmark {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.logo-wordmark .my-home {
+  font-weight: 500;
+}
+
+.logo-wordmark .manager {
+  font-weight: 600;
 }
 
 /* ===== Forms ===== */
@@ -121,7 +181,7 @@ textarea {
   padding: 12px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.18);
+  background: color-mix(in oklab, var(--card) 86%, var(--warm-sand));
   color: var(--text);
   outline: none;
   font-family: inherit;
@@ -144,8 +204,8 @@ textarea:focus {
   padding: 12px 14px;
   border: 0;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  color: #0b1220;
+  background: var(--accent);
+  color: #10201a;
   font-weight: 800;
   font-size: 14px;
   cursor: pointer;
@@ -197,7 +257,7 @@ textarea:focus {
 
 /* ===== Links ===== */
 .link {
-  color: rgba(32, 211, 255, 0.95);
+  color: var(--capybara-brown);
   text-decoration: none;
   font-weight: 700;
   font-size: 13px;
@@ -241,7 +301,7 @@ textarea:focus {
 /* ===== Sidebar ===== */
 .sidebar {
   border-right: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.18);
+  background: color-mix(in oklab, var(--card) 86%, var(--warm-sand));
   backdrop-filter: blur(8px);
   display: flex;
   flex-direction: column;
@@ -409,7 +469,7 @@ textarea:focus {
   justify-content: space-between;
   padding: 0 18px;
   border-bottom: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.12);
+  background: color-mix(in oklab, var(--card) 90%, var(--warm-sand));
   backdrop-filter: blur(8px);
 }
 
@@ -435,7 +495,7 @@ textarea:focus {
   padding: 10px 12px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.04);
+  background: #fff;
   color: var(--text);
 }
 
@@ -641,7 +701,7 @@ td {
 th {
   color: var(--muted);
   font-weight: 800;
-  background: rgba(0, 0, 0, 0.12);
+  background: color-mix(in oklab, var(--card) 90%, var(--warm-sand));
 }
 
 tr:last-child td {
@@ -757,7 +817,7 @@ tr:last-child td {
   border-radius: 10px;
   padding: 12px;
   font-size: 13px;
-  color: rgba(32, 211, 255, 0.95);
+  color: var(--capybara-brown);
 }
 
 .warning-box {
@@ -803,8 +863,8 @@ tr:last-child td {
   place-items: center;
   font-weight: 900;
   font-size: 22px;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  color: #0b1220;
+  background: var(--accent);
+  color: #10201a;
   flex-shrink: 0;
 }
 
@@ -861,7 +921,7 @@ tr:last-child td {
 }
 
 .setting-row:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: #fff;
 }
 
 .setting-label {
@@ -897,6 +957,10 @@ tr:last-child td {
 
 /* ===== Responsive Design ===== */
 @media (max-width: 980px) {
+  .logo-wordmark {
+    display: none;
+  }
+
   .topbar-right {
     width: 100%;
     justify-content: flex-end;
