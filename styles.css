@@ -111,14 +111,17 @@ body {
   color: inherit;
 }
 
+.logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 .logo-mark {
   width: 40px;
   height: 40px;
-<<<<<<< HEAD
-  border-radius: 12px;
-  object-fit: cover;
-  object-position: right center;
-=======
   flex-shrink: 0;
 }
 
@@ -159,7 +162,6 @@ body {
 
 .logo-wordmark .manager {
   font-weight: 600;
->>>>>>> 4a029a01e45e8c5e3b6be5a5a6d68971952d34cf
 }
 
 /* ===== Forms ===== */
@@ -324,6 +326,11 @@ textarea:focus {
   padding: 0;
 }
 
+
+.sidebar-close {
+  display: none;
+  margin-left: auto;
+}
 .sidebar-top {
   display: grid;
   gap: 14px;
@@ -991,6 +998,10 @@ tr:last-child td {
     bottom: 0;
     z-index: 100;
     width: 280px;
+  }
+
+  .sidebar-close {
+    display: inline-flex;
   }
 
   .app:not(.sidebar-collapsed) .sidebar {
