@@ -583,6 +583,11 @@ textarea:focus {
   gap: 12px;
 }
 
+
+.grid-span-2 {
+  grid-column: 1 / -1;
+}
+
 /* ===== Tables ===== */
 .tablewrap {
   overflow: auto;

@@ -98,13 +98,21 @@
   // Routes configuration
   const routes = getRoutesForRole(role);
 
+  // View-local UI state for quick-add forms (not persisted in URL)
+  let quickAddUnitPropertyId = "";
+  let showMaintenanceQuickAdd = false;
+
   // Event delegation for dynamic content
   viewEl.addEventListener("click", handleViewClick);
   viewEl.addEventListener("submit", handleViewSubmit, true);
   viewEl.addEventListener("change", handleViewChange);
 
   // Initial render
-  window.addEventListener("hashchange", render);
+  window.addEventListener("hashchange", () => {
+    quickAddUnitPropertyId = "";
+    showMaintenanceQuickAdd = false;
+    render();
+  });
   render();
 
   // ===== ROUTING & RENDERING =====
@@ -266,6 +274,32 @@
         break;
       }
 
+      case "quick-add-unit": {
+        const propertyId = target.dataset.propertyId;
+        if (!propertyId) return;
+        quickAddUnitPropertyId = quickAddUnitPropertyId === propertyId ? "" : propertyId;
+        render();
+        break;
+      }
+
+      case "cancel-quick-add-unit": {
+        quickAddUnitPropertyId = "";
+        render();
+        break;
+      }
+
+      case "quick-add-maintenance": {
+        showMaintenanceQuickAdd = !showMaintenanceQuickAdd;
+        render();
+        break;
+      }
+
+      case "cancel-quick-add-maintenance": {
+        showMaintenanceQuickAdd = false;
+        render();
+        break;
+      }
+
       case "delete-vendor": {
         const id = target.dataset.id;
         if (!confirm("Delete this vendor?")) return;
@@ -389,7 +423,7 @@
         break;
       }
 
-      case "addUnitFromProperties": {
+      case "addUnitFromPropertyCard": {
         const propertyId = form.propertyId.value;
         const label = form.label.value.trim();
         const sqft = Number(form.sqft.value || 0);
@@ -410,6 +444,7 @@
           leaseActive: false
         });
         form.reset();
+        quickAddUnitPropertyId = "";
         render();
         break;
       }
@@ -471,6 +506,7 @@
         });
 
         form.reset();
+        showMaintenanceQuickAdd = false;
         render();
         break;
       }
@@ -1178,22 +1214,19 @@
   function viewProperties() {
     const state = window.Data.db();
 
-    const propertyOptions = state.properties.map(p =>
-      `<option value="${p.id}">${esc(p.name)}</option>`
-    ).join("");
-
     const propertyTypeOptions = createCategoryOptions(getPropertyTypes());
 
     const props = state.properties.map(p => {
       const units = state.units.filter(u => u.propertyId === p.id);
       const occupiedCount = units.filter(u => u.status === UNIT_STATUS.OCCUPIED).length;
+      const showAddUnit = quickAddUnitPropertyId === p.id;
 
       return `
         <div class="panel">
           <div class="row between">
             <div>
               <div class="panel-h">${esc(p.name)}</div>
-              <div class="muted small">${esc(p.address)} \u2022 ${esc(p.type)}</div>
+              <div class="muted small">${esc(p.address)} • ${esc(p.type)}</div>
             </div>
             <div>
               <span class="pill pill-mid">${units.length} units</span>
@@ -1207,22 +1240,39 @@
               pillStatus(u.status),
               "$" + fmt(u.rent),
               fmt(u.sqft),
-              esc(u.tenantName || "\u2014"),
+              esc(u.tenantName || "—"),
               `<button class="btn btn-ghost" data-action="open-unit" data-id="${u.id}">Open</button>
                <button class="btn btn-ghost" data-action="delete-unit" data-id="${u.id}">Delete</button>`
-            ])) : `<div class="muted small">No units yet. Add units using the form on the right.</div>`}
+            ])) : `<div class="muted small">No units yet. Use Add Unit to create the first one.</div>`}
           </div>
 
-          <div class="mt12">
+          <div class="mt12 row">
+            <button class="btn btn-ghost" data-action="quick-add-unit" data-property-id="${p.id}">Add Unit</button>
             <button class="btn btn-ghost" data-action="delete-property" data-id="${p.id}">Delete Property</button>
           </div>
+
+          ${showAddUnit ? `
+            <div class="mt12">
+              <form id="addUnitFromPropertyCard" class="form compact">
+                <input type="hidden" name="propertyId" value="${p.id}">
+                <label>Unit label <input name="label" placeholder="e.g., 201 or Unit A" required></label>
+                <label>Square feet <input name="sqft" type="number" placeholder="0"></label>
+                <label>Monthly rent <input name="rent" type="number" placeholder="0" required></label>
+                <div class="row">
+                  <button class="btn" type="submit">Add unit</button>
+                  <button class="btn btn-ghost" type="button" data-action="cancel-quick-add-unit">Cancel</button>
+                </div>
+              </form>
+              <div class="muted small mt8">Tip: Units cannot be deleted if they have an active lease.</div>
+            </div>
+          ` : ""}
         </div>
       `;
     }).join("");
 
     return `
       <div class="grid2">
-        <div class="panel">
+        <div class="panel grid-span-2">
           <div class="panel-h">Add New Property</div>
           <form id="addPropertyForm" class="form compact">
             <label>Property name <input name="name" placeholder="e.g., Capitol Hill Apartments" required></label>
@@ -1232,23 +1282,6 @@
             </label>
             <button class="btn" type="submit">Add property</button>
           </form>
-        </div>
-
-        <div class="panel">
-          <div class="panel-h">Add Unit to Property</div>
-          <form id="addUnitFromProperties" class="form compact">
-            <label>Select property
-              <select name="propertyId" required>
-                <option value="">Choose a property</option>
-                ${propertyOptions}
-              </select>
-            </label>
-            <label>Unit label <input name="label" placeholder="e.g., 201 or Unit A" required></label>
-            <label>Square feet <input name="sqft" type="number" placeholder="0"></label>
-            <label>Monthly rent <input name="rent" type="number" placeholder="0" required></label>
-            <button class="btn" type="submit">Add unit</button>
-          </form>
-          <div class="muted small mt8">Tip: Units cannot be deleted if they have an active lease.</div>
         </div>
       </div>
 
@@ -1265,6 +1298,7 @@
 
   function viewMaintenance() {
     const state = window.Data.db();
+    const showAddMaintenance = showMaintenanceQuickAdd;
 
     const filterStatus = document.getElementById("filterStatus")?.value || "all";
     const filterUnit = document.getElementById("filterUnit")?.value || "all";
@@ -1279,7 +1313,7 @@
 
     const unitOptions = state.units.map(u => {
       const prop = state.properties.find(p => p.id === u.propertyId);
-      return `<option value="${u.id}">${esc(prop?.name || "Property")} \u2022 ${esc(u.label)}</option>`;
+      return `<option value="${u.id}">${esc(prop?.name || "Property")} • ${esc(u.label)}</option>`;
     }).join("");
 
     const categoryOptions = createCategoryOptions(getMaintenanceCategories());
@@ -1292,12 +1326,12 @@
       return [
         esc(getUnitLabel(unit, state)),
         esc(m.title),
-        esc(m.category || "\u2014"),
-        feature ? esc(`${feature.category} \u2022 ${feature.name}`) : "\u2014",
+        esc(m.category || "—"),
+        feature ? esc(`${feature.category} • ${feature.name}`) : "—",
         priorityBadge(m.priority),
         pillStatus(m.status),
         m.created,
-        `<button class="btn btn-ghost" data-action="advance-maintenance" data-id="${m.id}" data-next="${next}">\u2192 ${next}</button>`
+        `<button class="btn btn-ghost" data-action="advance-maintenance" data-id="${m.id}" data-next="${next}">→ ${next}</button>`
       ];
     });
 
@@ -1307,8 +1341,8 @@
       return [
         esc(getUnitLabel(unit, state)),
         esc(h.title),
-        esc(h.category || "\u2014"),
-        feature ? esc(`${feature.category} \u2022 ${feature.name}`) : "\u2014",
+        esc(h.category || "—"),
+        feature ? esc(`${feature.category} • ${feature.name}`) : "—",
         h.completed,
         "$" + fmt(h.cost)
       ];
@@ -1316,32 +1350,7 @@
 
     return `
       <div class="grid2">
-        <div class="panel">
-          <div class="panel-h">Create Maintenance Request</div>
-          <form id="addMaintenanceForm" class="form compact">
-            <label>Unit
-              <select name="unitId" required>
-                <option value="">Select unit</option>
-                ${unitOptions}
-              </select>
-            </label>
-            <label>Issue description <input name="title" placeholder="e.g., leaking faucet" required></label>
-            <label>Category
-              <select name="category">${categoryOptions}</select>
-            </label>
-            <label>Priority
-              <select name="priority">
-                <option>${PRIORITY.LOW}</option>
-                <option selected>${PRIORITY.MEDIUM}</option>
-                <option>${PRIORITY.HIGH}</option>
-              </select>
-            </label>
-            <label>Description <textarea name="description" placeholder="Additional details..."></textarea></label>
-            <button class="btn" type="submit">Create request</button>
-          </form>
-        </div>
-
-        <div class="panel">
+        <div class="panel grid-span-2">
           <div class="panel-h">Maintenance Statistics</div>
           <div class="stack">
             <div>
@@ -1367,18 +1376,49 @@
       <div class="panel mt16">
         <div class="row between mb12">
           <div class="panel-h">Active Maintenance Requests</div>
-          <div class="filters">
-            <select id="filterStatus" class="filter">
-              <option value="all">All Statuses</option>
-              <option value="${MAINTENANCE_STATUS.OPEN}">${MAINTENANCE_STATUS.OPEN}</option>
-              <option value="${MAINTENANCE_STATUS.IN_PROGRESS}">${MAINTENANCE_STATUS.IN_PROGRESS}</option>
-            </select>
-            <select id="filterUnit" class="filter">
-              <option value="all">All Units</option>
-              ${unitOptions}
-            </select>
+          <div class="row">
+            <button class="btn btn-ghost" data-action="quick-add-maintenance" type="button">Add Request</button>
+            <div class="filters">
+              <select id="filterStatus" class="filter">
+                <option value="all">All Statuses</option>
+                <option value="${MAINTENANCE_STATUS.OPEN}">${MAINTENANCE_STATUS.OPEN}</option>
+                <option value="${MAINTENANCE_STATUS.IN_PROGRESS}">${MAINTENANCE_STATUS.IN_PROGRESS}</option>
+              </select>
+              <select id="filterUnit" class="filter">
+                <option value="all">All Units</option>
+                ${unitOptions}
+              </select>
+            </div>
           </div>
         </div>
+
+        ${showAddMaintenance ? `
+          <form id="addMaintenanceForm" class="form compact mb12">
+            <label>Unit
+              <select name="unitId" required>
+                <option value="">Select unit</option>
+                ${unitOptions}
+              </select>
+            </label>
+            <label>Issue description <input name="title" placeholder="e.g., leaking faucet" required></label>
+            <label>Category
+              <select name="category">${categoryOptions}</select>
+            </label>
+            <label>Priority
+              <select name="priority">
+                <option>${PRIORITY.LOW}</option>
+                <option selected>${PRIORITY.MEDIUM}</option>
+                <option>${PRIORITY.HIGH}</option>
+              </select>
+            </label>
+            <label>Description <textarea name="description" placeholder="Additional details..."></textarea></label>
+            <div class="row">
+              <button class="btn" type="submit">Create request</button>
+              <button class="btn btn-ghost" type="button" data-action="cancel-quick-add-maintenance">Cancel</button>
+            </div>
+          </form>
+        ` : ""}
+
         ${rows.length > 0 ? createTable(["Unit", "Issue", "Category", "Feature", "Priority", "Status", "Created", "Action"], rows)
           : `<div class="muted small">No active maintenance requests matching the filters.</div>`}
       </div>
