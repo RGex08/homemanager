@@ -411,7 +411,42 @@ Built with vanilla JavaScript, HTML5, and CSS3. No external libraries or framewo
 
 ---
 
-**Version:** 1.0 (Prototype)  
-**Last Updated:** February 2026  
+## My Home Manager — Brand Bible
+
+### Brand Essence
+Calm, trustworthy home management software that makes ownership, renting, and property care feel
+organized and under control.
+
+### Brand Promise
+Your home is handled.
+
+### Personality
+Calm · Trustworthy · Friendly · Competent
+
+### Target Users
+Homeowners, Property Owners, Tenants
+
+### Core Colors
+| Color | Hex |
+|-------|-----|
+| Capybara Brown | `#7A5C3E` |
+| Sage Green | `#7FA68A` |
+| Warm Sand | `#E8DDCF` |
+| Soft Cream | `#FAF8F4` |
+| Charcoal | `#2F2F2F` |
+
+### Typography
+**Primary Font:** Inter (system fallback allowed)
+
+### Mascot
+Capybara — calm guardian. Used for reassurance, never for errors or payments.
+
+### UI Principles
+Clarity over decoration. Calm over clever. Always feel in control.
+
+---
+
+**Version:** 1.0 (Prototype)
+**Last Updated:** February 2026
 **Author:** Property Management Solutions
 
