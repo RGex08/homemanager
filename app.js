@@ -25,19 +25,22 @@
   // Current user info
   const me = window.Auth.me();
   const role = me.role;
-  const email = me.email;
 
   // DOM elements
   const navEl = document.getElementById("nav");
   const viewEl = document.getElementById("view");
   const whoEl = document.getElementById("who");
+  const whoEmailEl = document.getElementById("whoEmail");
   const roleBadge = document.getElementById("roleBadge");
   const pageTitle = document.getElementById("pageTitle");
   const pageSubtitle = document.getElementById("pageSubtitle");
   const kpiPills = document.getElementById("kpiPills");
+  const globalSearchForm = document.getElementById("globalSearchForm");
+  const globalSearchInput = document.getElementById("globalSearchInput");
 
   // Initialize UI
-  whoEl.textContent = me.email;
+  whoEl.textContent = "My Profile";
+  whoEmailEl.textContent = me.email;
   roleBadge.textContent = getRoleLabel(role);
 
   // Sidebar toggle functionality
@@ -81,6 +84,17 @@
     window.location.href = "./index.html";
   });
 
+
+  globalSearchForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const query = globalSearchInput.value.trim();
+    if (!query) {
+      setHash("dashboard");
+      return;
+    }
+    setHash("search", { q: query });
+  });
+
   // Routes configuration
   const routes = getRoutesForRole(role);
 
@@ -98,7 +112,23 @@
   function render() {
     const { key, params } = parseHash();
 
+    globalSearchInput.value = key === "search" ? (params.get("q") || "") : "";
+
     renderNav(routes);
+
+    if (key === "search") {
+      const query = (params.get("q") || "").trim();
+
+      renderKpis();
+      pageTitle.textContent = "Search";
+      pageSubtitle.textContent = query ? `Results for "${query}"` : "Find records across HomeManager";
+
+      viewEl.innerHTML = viewSearch(query);
+
+      highlightTopNav(null);
+      highlightNavUnit(null);
+      return;
+    }
 
     // Dynamic Unit route
     if (key === "unit") {
@@ -141,36 +171,11 @@
   }
 
   function renderNav(items) {
-    const state = window.Data.db();
-    const { key, params } = parseHash();
-    const activeUnitId = key === "unit" ? params.get("unitId") : null;
-
-    const allUnits = state.units.map(u => {
-      const prop = state.properties.find(p => p.id === u.propertyId);
-      return { ...u, propertyName: prop?.name || "Unknown Property" };
-    });
-
-    const unitsHtml = allUnits.map(u => `
-      <a class="navitem navitem-child ${activeUnitId === u.id ? "active" : ""}"
-         href="#unit?unitId=${u.id}&tab=tenants"
-         data-unit="${u.id}">
-        <span class="dot dot-child"></span>
-        <span>${esc(u.propertyName)} \u2022 ${esc(u.label)}</span>
+    navEl.innerHTML = items.map(i => `
+      <a class="navitem" href="#${i.key}" data-key="${i.key}">
+        <span class="dot"></span><span>${i.title}</span>
       </a>
     `).join("");
-
-    navEl.innerHTML = `
-      ${items.map(i => `
-        <a class="navitem" href="#${i.key}" data-key="${i.key}">
-          <span class="dot"></span><span>${i.title}</span>
-        </a>
-      `).join("")}
-
-      <div class="navsection-title">Units</div>
-      <div class="units-list">
-        ${unitsHtml || `<div class="muted small">No units yet \u2014 add from Properties page.</div>`}
-      </div>
-    `;
   }
 
   function renderKpis() {
@@ -994,6 +999,105 @@
   }
 
   // ===== TOP-LEVEL VIEWS =====
+
+  function viewSearch(query) {
+    if (!query) {
+      return `
+        <div class="panel">
+          <div class="muted">Enter a term in the search bar to find properties, units, vendors, tenants, and more.</div>
+        </div>
+      `;
+    }
+
+    const q = query.toLowerCase();
+    const state = window.Data.db();
+
+    const propertyById = new Map(state.properties.map(p => [p.id, p]));
+    const unitById = new Map(state.units.map(u => [u.id, u]));
+
+    const results = [];
+
+    state.properties.forEach(property => {
+      if (`${property.name} ${property.address} ${property.type}`.toLowerCase().includes(q)) {
+        results.push({ label: `Property: ${property.name}`, meta: property.address, href: "#properties" });
+      }
+    });
+
+    state.units.forEach(unit => {
+      const property = propertyById.get(unit.propertyId);
+      if (`${unit.label} ${unit.tenantName} ${property?.name || ""}`.toLowerCase().includes(q)) {
+        results.push({
+          label: `Unit: ${property?.name || "Property"} • ${unit.label}`,
+          meta: `${unit.status} • $${fmt(unit.rent)}/mo`,
+          href: `#unit?unitId=${unit.id}&tab=tenants`
+        });
+      }
+    });
+
+    state.tenants.forEach(tenant => {
+      const unit = unitById.get(tenant.unitId);
+      const property = unit ? propertyById.get(unit.propertyId) : null;
+      if (`${tenant.name} ${tenant.email} ${tenant.phone}`.toLowerCase().includes(q)) {
+        results.push({
+          label: `Tenant: ${tenant.name}`,
+          meta: `${tenant.email} • ${(property?.name || "Property")} ${(unit?.label || "")}`.trim(),
+          href: unit ? `#unit?unitId=${unit.id}&tab=tenants` : "#properties"
+        });
+      }
+    });
+
+    state.vendors.forEach(vendor => {
+      if (`${vendor.name} ${vendor.email} ${vendor.phone} ${vendor.category}`.toLowerCase().includes(q)) {
+        results.push({ label: `Vendor: ${vendor.name}`, meta: `${vendor.category} • ${vendor.email}`, href: "#vendors" });
+      }
+    });
+
+    state.maintenance.forEach(item => {
+      const unit = unitById.get(item.unitId);
+      const property = unit ? propertyById.get(unit.propertyId) : null;
+      if (`${item.title} ${item.category} ${item.status}`.toLowerCase().includes(q)) {
+        results.push({
+          label: `Maintenance: ${item.title}`,
+          meta: `${item.status} • ${(property?.name || "Property")} ${(unit?.label || "")}`.trim(),
+          href: "#maintenance"
+        });
+      }
+    });
+
+    state.notifications.forEach(note => {
+      if (`${note.type} ${note.text}`.toLowerCase().includes(q)) {
+        results.push({ label: `Notification: ${note.type}`, meta: note.text, href: "#notifications" });
+      }
+    });
+
+    const deduped = [];
+    const seen = new Set();
+    results.forEach(result => {
+      const id = `${result.label}|${result.meta}|${result.href}`;
+      if (!seen.has(id)) {
+        seen.add(id);
+        deduped.push(result);
+      }
+    });
+
+    if (deduped.length === 0) {
+      return `<div class="panel"><div class="muted">No results found for <b>${esc(query)}</b>.</div></div>`;
+    }
+
+    return `
+      <div class="panel stack">
+        <div class="muted small">${deduped.length} result${deduped.length === 1 ? "" : "s"} found</div>
+        <div class="search-results">
+          ${deduped.map(result => `
+            <a class="search-result" href="${result.href}">
+              <div class="search-result-title">${esc(result.label)}</div>
+              <div class="muted small">${esc(result.meta)}</div>
+            </a>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
 
   function viewDashboard() {
     const state = window.Data.db();

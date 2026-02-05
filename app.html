@@ -39,14 +39,18 @@
         </div>
 
         <div class="topbar-right">
+          <form id="globalSearchForm" class="search-form" role="search">
+            <input id="globalSearchInput" class="search-input" type="search" placeholder="Search properties, units, vendors..." aria-label="Search the application" />
+          </form>
           <div id="kpiPills" class="kpis"></div>
           <div class="user-menu">
             <button id="userMenuBtn" class="pill user-pill" type="button">
-              <span id="who">—</span>
+              <span id="who">My Profile</span>
               <span class="dropdown-arrow">▼</span>
             </button>
             <div id="userMenuDropdown" class="user-dropdown">
-              <a href="#profile" class="dropdown-item">👤 My Profile</a>
+              <div id="whoEmail" class="dropdown-email muted small">—</div>
+              <div class="dropdown-divider"></div>
               <a href="#settings" class="dropdown-item">⚙️ My Settings</a>
               <a href="#account" class="dropdown-item">🔐 My Account</a>
               <div class="dropdown-divider"></div>
